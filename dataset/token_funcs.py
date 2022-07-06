@@ -272,7 +272,7 @@ def time_sig_tokens(beats,
 
 def note_tokens(notes,
                 beats_score,
-                duration_quant=1/120,
+                duration_quant=1/60,
                 start_quant=1/120,
                 split_duration=True):
     """
@@ -363,7 +363,7 @@ def dynamics_tokens(notes_gp,
                     mean_len=3,
                     mean_quant=1,
                     std_quant=1,
-                    bands=[],
+                    bands=[0, 31, 63, 95, 127],
                     band_win=1,
                     band_hysteresis=(5, 5),
                     note_std_quant=0.2,
@@ -408,23 +408,29 @@ def dynamics_tokens(notes_gp,
     prev_mean = 0
     prev_median = 0
     for idx, group in enumerate(notes_gp):
-        # no metic token for anacrusis
-        if idx > 0:
-            # local mean velocity
-            gp_range = (max(idx - mean_len // 2, 0), min((idx + mean_len // 2) + 1, num_gps))
-            gp_slice = functools.reduce(lambda x, y: x + y, notes_gp[slice(*gp_range)])
-            velocities = [n.velocity for n in gp_slice]
-            # if no notes in range
-            if not len(velocities):
-                mean_vel = prev_mean
-            else:
-                mean_vel = statistics.mean(velocities)
-                prev_mean = mean_vel
-            
-            local_mean_out.append((ext_beats[idx], utils.quantize(mean_vel, mean_quant)))
-            
-            # local velocity standard deviation
+
+        # local mean velocity
+        gp_range = (max(idx - mean_len // 2, 0), min((idx + mean_len // 2) + 1, num_gps))
+        gp_slice = functools.reduce(lambda x, y: x + y, notes_gp[slice(*gp_range)])
+        velocities = [n.velocity for n in gp_slice]
+        # if no notes in range
+        if not len(velocities):
+            mean_vel = prev_mean
+        else:
+            mean_vel = statistics.mean(velocities)
+            prev_mean = mean_vel
+        
+        # local velocity standard deviation
+        if len(velocities):
             std_vel = statistics.pstdev(velocities, mu=mean_vel)
+        else:
+            std_vel = 0
+            
+        # no metric token for anacrusis
+        if idx > 0:
+            # make tokens
+            local_mean_out.append((ext_beats[idx], utils.quantize(mean_vel, mean_quant)))
+
             local_std_out.append((ext_beats[idx], utils.quantize(std_vel, std_quant)))
             
             # local velocity band
@@ -441,7 +447,10 @@ def dynamics_tokens(notes_gp,
         
         for note in group:
             # note-wise deviation from local velocity mean
-            dev = utils.quantize((note.velocity - mean_vel) / std_vel, note_std_quant)
+            if std_vel:
+                dev = utils.quantize((note.velocity - mean_vel) / std_vel, note_std_quant)
+            else:
+                dev = 0
 
             if note_std_bounds is not None:
                 dev = utils.bound(dev, note_std_bounds)
@@ -556,11 +565,14 @@ def timing_labels(notes_score,
             # actual duration
             dur_perf = note.end - note.start
             
-            # articulation difference as proportion of expected
-            artic = (dur_perf - dur_pred) / dur_pred
-            if artic_lims is not None:
-                artic = artic_lims[0] if artic < artic_lims[0] else artic
-                artic = artic_lims[1] if artic > artic_lims[1] else artic
+            if dur_pred:
+                # articulation difference as proportion of expected
+                artic = (dur_perf - dur_pred) / dur_pred
+                if artic_lims is not None:
+                    artic = artic_lims[0] if artic < artic_lims[0] else artic
+                    artic = artic_lims[1] if artic > artic_lims[1] else artic
+            else: 
+                artic = 0
             
             # get equivalent score time for reference
             time = notes_score_gp[beat][idx].start

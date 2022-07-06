@@ -8,6 +8,8 @@ import os
 import pickle
 import itertools
 import utils
+import sys
+import json
 
 import pretty_midi
 import miditoolkit
@@ -56,10 +58,10 @@ def compute_tokens(t_types: dict,
         perf_path: path to performance MIDI file
     """
     # load MIDI
-    score = pretty_midi.PrettyMIDI(score_path)
-    perf = pretty_midi.PrettyMIDI(perf_path)
-
-    mtk_score = miditoolkit.midi.parser.MidiFile(score_path)
+    score = pretty_midi.PrettyMIDI(os.path.join('asap-dataset', score_path))
+    perf = pretty_midi.PrettyMIDI(os.path.join('asap-dataset', perf_path))
+    
+    # mtk_score = miditoolkit.midi.parser.MidiFile(os.path.join('asap-dataset', score_path))
     
     # load current data
     try:
@@ -81,6 +83,7 @@ def compute_tokens(t_types: dict,
     score_notes, perf_notes, _, _ = utils.align_notes(score_notes,
                                                       perf_notes,
                                                       beats_score,
+                                                      beats_perf,
                                                       search_range=align_range)
     
     # goup notes by score beat
@@ -91,7 +94,7 @@ def compute_tokens(t_types: dict,
     # --- get tokens --- #
     # metre tokens
     if 'bar' in t_types:
-        tokens['bar'] = token_funcs.bar_tokens(beats_score)
+        tokens['bar'] = token_funcs.bar_tokens(beats_score, db_score)
     
     if 'beat' in t_types:
         tokens['beat'] = token_funcs.beat_tokens(beats_score, db_score)
@@ -149,7 +152,7 @@ def compute_tokens(t_types: dict,
         if 'duration' in t_types:
             duration = t_types['duration']
         elif duration is None:
-            _, _, duration = token_funcs.note_tokens(score_notes, beats_score)
+            _, _, duration, _, _ = token_funcs.note_tokens(score_notes, beats_score)
         kwargs = dict(list(itertools.chain(*[list(t_types[i].items()) for i in timing])))
         articulation, timing_dev = token_funcs.timing_labels(score_notes,
                                                              perf_notes,
@@ -166,10 +169,10 @@ def compute_tokens(t_types: dict,
         if 'time_sig' in t_types:
             time_sig = t_types['duration']
         elif time_sig is None:
-            time_sig = token_funcs.time_sig_tokens(utils.get_time_sigs(score))
+            time_sig = token_funcs.time_sig_tokens(beats_score, utils.get_time_sigs(score),
+                                                   corpus_sigs,)
         kwargs = dict(list(itertools.chain(*[list(t_types[i].items()) for i in harm])))
-        keys, harmonic_quality = token_funcs.harmonic_tokens(mtk_score,
-                                                             time_sig,
+        keys, harmonic_quality = token_funcs.harmonic_tokens(score_gp,
                                                              beats_score,
                                                              **kwargs)
         for t in harm:
@@ -196,6 +199,8 @@ def create_training_data(t_types, tokens_base, align_range=0.25):
     Save data and corresponding metadata file
     """
     os.makedirs(tokens_base, exist_ok=True)
+    meta_path = os.path.join(tokens_base, 'metadata')
+    os.makedirs(meta_path, exist_ok=True)
 
     metadata = utils.get_metadata()
     
@@ -216,7 +221,7 @@ def create_training_data(t_types, tokens_base, align_range=0.25):
         # deal with duplicate names
         name += '_0'
         while name in names:
-            name[-1] = str(int(name[-1]) + 1)
+            name = name[:-1] + str(int(name[-1]) + 1)
         names.append(name)
         
         token_name = name + '.pkl'
@@ -230,5 +235,17 @@ def create_training_data(t_types, tokens_base, align_range=0.25):
                        perf_path=perf_path, align_range=align_range)
     
     print("\nProcessing complete\n")
+    
+    path = os.path.join(meta_path, 'tokens_meta.json')
+    with open(path) as f:
+        tokens_meta = json.load(f)
+    
+    tokens_meta.update(t_types)
+    
+    with open(path, 'w') as f:
+        json.dump(tokens_meta, f)
 
+
+if __name__ == '__main__':
+    create_training_data({}, 'tokens/t1')
 
