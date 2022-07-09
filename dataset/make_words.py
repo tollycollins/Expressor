@@ -6,6 +6,7 @@ import os
 import pickle
 import collections
 import inspect
+import sys
 
 import torch
 
@@ -162,7 +163,9 @@ def compute_words(tokens_root,
         name = os.path.splitext(tail)[0]
         
         # update metadata
-        words_info[name]['num_words'] = len(words)
+        words_info[name] = dict()
+        w_len = len(words)
+        words_info[name]['num_words'] = w_len
         
         # save words list
         words = torch.as_tensor(words)
@@ -174,8 +177,23 @@ def compute_words(tokens_root,
     metadata['token_info'] = token_info
     metadata['words_info'] = words_info
     metadata['token_positions'] = t_pos
+    
     path = os.path.join(meta_root, 'metadata.pkl')
     with open(path, 'wb') as f:
         pickle.dump((val2idx, idx2val, metadata), f)
 
+    
+
+if __name__ == '__main__':
+    tokens_root = sys.argv[1]
+    words_root = sys.argv[2]
+    
+    compute_words(tokens_root, 
+                  words_root, 
+                  bar_tokens=None,
+                  eos_tokens=(True, True),
+                  type_tokens=True,
+                  metric_t_types=[],
+                  note_t_types=[])
+    
     

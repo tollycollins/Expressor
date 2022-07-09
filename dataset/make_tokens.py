@@ -138,9 +138,9 @@ def compute_tokens(t_types: dict,
                          'note_vel_band', 'note_rel_vel'] if t in t_types]
     if len(dynam):   
         kwargs = dict(list(itertools.chain(*[list(t_types[i].items()) for i in dynam])))
-        local_vel_band, local_vel_mean, \
-            local_vel_std, note_vel, \
-            note_vel_band, note_rel_vel = token_funcs.dynamics_tokens(perf_gp,
+        local_vel_mean, local_vel_std, \
+            local_vel_band, note_rel_vel, \
+            note_vel, note_vel_band = token_funcs.dynamics_tokens(perf_gp,
                                                                       beats_score,
                                                                       **kwargs)
         for t in dynam:
@@ -237,8 +237,11 @@ def create_training_data(t_types, tokens_base, align_range=0.25):
     print("\nProcessing complete\n")
     
     path = os.path.join(meta_path, 'tokens_meta.json')
-    with open(path) as f:
-        tokens_meta = json.load(f)
+    try:
+        with open(path) as f:
+            tokens_meta = json.load(f)
+    except FileNotFoundError:
+        tokens_meta = dict()
     
     tokens_meta.update(t_types)
     
@@ -247,5 +250,12 @@ def create_training_data(t_types, tokens_base, align_range=0.25):
 
 
 if __name__ == '__main__':
-    create_training_data({}, 'tokens/t1')
+    # create_training_data({'local_vel_band': {}, 'local_vel_mean': {}, 
+    #                      'local_vel_std': {}, 'note_vel': {},
+    #                      'note_vel_band': {}, 'note_rel_vel': {}, 'time_sig': {}}, 'tokens/t1')
+
+    create_training_data({'local_vel_mean': {}, 
+                          'local_vel_std': {}, 'note_vel': {},
+                          'note_vel_band': {}, 'note_rel_vel': {}, 'time_sig': {}}, 
+                          'tokens/t1')
 
