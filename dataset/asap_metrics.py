@@ -44,6 +44,24 @@ def time_signature(print_names=[], show_composer=False, verbose=True):
     return time_sigs
 
 
+def pianists(verbose=True):
+    """
+    Calculate the number of different performers in the dataset
+    """
+    metadata = utils.get_metadata()
+    names = set()
+    for name in metadata:
+        name = os.path.split(name)[1]
+        name = os.path.splitext(name)[0][:-2]
+        names.add(name)
+
+    if verbose:
+        print(f"{len(names)} unique performers")
+    
+    return len(names)
+
+
+
 def pitches():
     pass
 
