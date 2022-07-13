@@ -10,7 +10,6 @@ import math
 
 import torch
 import torch.nn as nn
-from fast_transformers.transformers import TransformerEncoderLayer, TransformerDecoderLayer
 from fast_transformers.masking import FullMask, LengthMask, TriangularCausalMask
 from fast_transformers.events import EventDispatcher
 
@@ -42,8 +41,8 @@ class PositionalEncoding(nn.module):
         self.register_buffer('pos_enc', pos_enc)
         
     def forward(self, x):
-        x = x + self.pos_enc[:, :x.size(1), :]
-        return self.dropout(x)
+        x = self.dropout(x) + self.pos_enc[:, :x.size(1), :]
+        return x
 
 
 class EncoderBlock(nn.module):
@@ -80,25 +79,57 @@ class EncoderBlock(nn.module):
 class DecoderBlock(nn.module):
     def __init__(self, layers):
         super().__init__()
-        self.layers=nn.ModuleList(layers)
+        self.layers = nn.ModuleList(layers)
         self.event_dispatcher = EventDispatcher.get()
     
-    def forward(self, x, zs):
+    def forward(self, y, zs):
+        """
+        y: for teacher forcing, list of target outputs (batch_len, seq_len, dim_dec)
+        zs: list of cross attention keys/values (batch_len, seq_len, dim_attr)
+        """
         # masks
-        N = x.shape[0]
-        L = x.shape[1]
+        N = y.shape[0]
+        L = y.shape[1]
         L_prime = zs[0].shape[1]
-        x_mask = TriangularCausalMask(L, device=x.device)
-        x_length_mask = LengthMask(x.new_full((N, ), L, dtype=torch.int64))
-        zs_mask = FullMask(L, L_prime, device=x.device)
-        zs_length_mask = LengthMask(x.new_full((N, ), L_prime, dtype=torch.int64))
+        y_mask = TriangularCausalMask(L, device=y.device)
+        y_length_mask = LengthMask(y.new_full((N, ), L, dtype=torch.int64))
+        zs_mask = FullMask(L, L_prime, device=y.device)
+        zs_length_mask = LengthMask(y.new_full((N, ), L_prime, dtype=torch.int64))
 
         # apply layers
         for idx, layer in enumerate(self.layers):
-            x = layer(x, zs[idx], x_mask=x_mask, x_length_mask=x_length_mask, 
+            y = layer(y, zs[idx], x_mask=y_mask, 
+                      x_length_mask=y_length_mask, 
                       memory_mask=zs_mask, memory_length_mask=zs_length_mask)
         
-        return x
+        return y
         
         
+class RecurrentDecoderBlock(nn.module):
+    def __init__(self, layers):
+        super().__init__()
+        self.layers = nn.ModuleList(layers)
+        self.event_dispatcher = EventDispatcher.get()
+
+    def forward(self, y, zs, state=None):
+        """
+        y: previous output (batch_len, dim_dec)
+        zs: list of cross attention keys/values (batch_len, seq_len, dim_attr)
+        state: List of objects to be passed to each transformer decoder layers
+        """
+        # initialise state if not given
+        if state is None:
+            state = [None] * len(self.layers)
         
+        # mask
+        N = y.shape[0]
+        L_prime = zs[0].shape[1]
+        zs_length_mask = LengthMask(y.new_full((N, ), L_prime, dtype=torch.int64))
+        
+        # apply layers
+        for idx, layer in enumerate(self.layers):
+            y, s = layer(y, zs[idx], memory_length_mask=zs_length_mask, state=state[idx])
+            state[idx] = s
+        
+        return y, state
+

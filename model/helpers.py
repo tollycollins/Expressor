@@ -5,6 +5,7 @@ References:
     https://github.com/YatingMusic/MuseMorphose/blob/main/model/transformer_helpers.py
 """
 
+import numpy as np
 from torch import nn
 
 def weight_init_normal(weight, normal_std):
@@ -37,4 +38,11 @@ def weights_init(m, verbose=False):
             bias_init(m.bias)
     else:
       print (f'[{classname}] not initialized !!')
+
+
+def network_paras(model):
+    # compute only trainable params
+    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
+    params = sum([np.prod(p.size()) for p in model_parameters])
+    return params
 
