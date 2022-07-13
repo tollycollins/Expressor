@@ -33,7 +33,11 @@ def word_pos(meta_len, metric_t_types, note_t_types):
 
 
 def get_word_seq(tokens, cw, t_pos, 
-                 eos_tokens, bar_tokens, type_tokens, metric_t_types, note_t_types):
+                 eos_tokens, bar_tokens, type_tokens, 
+                 metric_t_types, note_t_types):
+    """
+    create sequence of words for a single track
+    """
     # initialise output
     words = []
 
