@@ -8,44 +8,53 @@ import torch
 from torch.utils.data import Dataset, random_split
 
 
-def random_split(data, length, ratio, seed=1):
+def random_split(data, metadata, length, ratio, seed=1):
     train_size = int((1 - ratio) * length)
     test_size = length - train_size   
 
     train_ind, test_ind = random_split(range(length), [train_size, test_size], 
                                        generator=torch.Generator().manual_seed(seed))
     
-    train_data = [[d[i] for i in train_ind] for d in data]
-    test_data = [[d[i] for i in test_ind] for d in data]
+    return train_ind, test_ind
 
-    return train_data, test_data
+    # train_ind, test_ind = random_split(range(length), [train_size, test_size], 
+    #                                    generator=torch.Generator().manual_seed(seed))
+    
+    # train_data = [[d[i] for i in train_ind] for d in data]
+    # test_data = [[d[i] for i in test_ind] for d in data]
+    
+    # train_meta = 
+    
+    # return train_data, test_data
 
 
-def get_split_data(data_path, test_ratio=0.1, validation_ratio=0.2,
-               max_examples=None, seed=1,
-               mode="random"):
+def get_split_data(names, test_ratio=0.1, validation_ratio=0.2,
+                   max_examples=None, seed=1,
+                   split_mode="random"):
     """
     Split data into training, validation and test sets
 
     data: (in, attr, out) - [seq(word)]
     """
-    with open(data_path, 'rb') as f:
-        data = pickle.load(f)
+    # with open(data_path, 'rb') as f:
+    #     data = pickle.load(f)
     
-    length = len(data[0])
+    # length = len(data[0])
     
-    assert length == len(data[1])
-    assert length == len(data[2])
+    # assert length == len(data[1])
+    # assert length == len(data[2])
+
+    length = len(names)
     
     if max_examples:
         length = min(length, max_examples)   
     
     val = None
-    if mode == 'random':
-        train, test = random_split(data, length, test_ratio, seed)
+    if split_mode == 'random':
+        train, test = random_split(names, length, test_ratio, seed)
 
         if validation_ratio:
-            train, val = random_split(train, len(train[0]), validation_ratio, seed)
+            train, val = random_split(names, validation_ratio, seed)
     
     return train, val, test
 
