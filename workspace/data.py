@@ -2,7 +2,6 @@
 split data function
 Dataset class
 """
-import os
 import pickle
 
 import torch
