@@ -12,8 +12,10 @@ import logging
 import pickle
 import json
 
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from torch.nn.utils import clip_grad_norm_
 
 from model.models import Expressor
 from model.helpers import network_params
@@ -222,12 +224,43 @@ class Controller():
 
         # saver agent
         saver = SaverAgent(self.path, name=save_name, mode=log_mode)
+        saver.add_summary_msg(' > # parameters: {n_params}')
         
         # handle device
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         model.to(device)
+        
+        print("Starting training ...")
 
         # training loop
+        start_time = time.time()
+        
+        for epoch in range(epochs):
+            # track cumulative loss
+            total_loss = 0
+            total_losses = np.zeros(7)
+        
+            for data in train_loader:
+                
+                saver.global_step_increment()
+                
+                # unpack data
+                enc_in = data['in'].to(device)
+                attr_in = data['attr'].to(device)
+                dec_in = data['out'].to(device)
+                
+                # train
+                
+                loss = ...
+                
+                # update
+                optimizer.zero_grad()
+                loss.backward()
+                if max_grad_norm is not None:
+                    clip_grad_norm_(model.parameters(), max_grad_norm)
+                optimizer.step()
+                
+                
     
 
     
