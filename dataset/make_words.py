@@ -50,7 +50,7 @@ def get_word_seq(tokens, cw, t_pos,
     # words by beat
     for idx in range(len(tokens['beat'] + 1)):
         # --- metric word -- #
-        # don't consider anacrisus for beat tokens
+        # don't consider anacrusis for beat tokens
         if idx > 0:
             word = cw.copy()
                     
@@ -233,9 +233,9 @@ def compute_words(tokens_root,
     metadata = {}
     metadata['token_info'] = token_info
     metadata['words_info'] = words_info
-    metadata['in_token_positions'] = in_pos
-    metadata['attr_token_positions'] = attr_pos
-    metadata['out_token_positions'] = out_pos
+    metadata['in_pos'] = in_pos
+    metadata['attr_pos'] = attr_pos
+    metadata['out_pos'] = out_pos
     
     meta_name = os.path.join(words_root, 'metadata.pkl')
     with open(meta_name, 'wb') as f:
