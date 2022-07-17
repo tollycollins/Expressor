@@ -40,7 +40,7 @@ def weights_init(m, verbose=False):
       print (f'[{classname}] not initialized !!')
 
 
-def network_paras(model):
+def network_params(model):
     # compute only trainable params
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
