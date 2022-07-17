@@ -2,13 +2,14 @@
 split data function
 Dataset class
 """
+import os
 import pickle
 
 import torch
 from torch.utils.data import Dataset, random_split
 
 
-def random_split(data, metadata, length, ratio, seed=1):
+def make_random_split(length, ratio, seed=1):
     train_size = int((1 - ratio) * length)
     test_size = length - train_size   
 
@@ -16,16 +17,6 @@ def random_split(data, metadata, length, ratio, seed=1):
                                        generator=torch.Generator().manual_seed(seed))
     
     return train_ind, test_ind
-
-    # train_ind, test_ind = random_split(range(length), [train_size, test_size], 
-    #                                    generator=torch.Generator().manual_seed(seed))
-    
-    # train_data = [[d[i] for i in train_ind] for d in data]
-    # test_data = [[d[i] for i in test_ind] for d in data]
-    
-    # train_meta = 
-    
-    # return train_data, test_data
 
 
 def get_split_data(names, test_ratio=0.1, validation_ratio=0.2,
@@ -36,14 +27,6 @@ def get_split_data(names, test_ratio=0.1, validation_ratio=0.2,
 
     data: (in, attr, out) - [seq(word)]
     """
-    # with open(data_path, 'rb') as f:
-    #     data = pickle.load(f)
-    
-    # length = len(data[0])
-    
-    # assert length == len(data[1])
-    # assert length == len(data[2])
-
     length = len(names)
     
     if max_examples:
@@ -51,35 +34,53 @@ def get_split_data(names, test_ratio=0.1, validation_ratio=0.2,
     
     val = None
     if split_mode == 'random':
-        train, test = random_split(names, length, test_ratio, seed)
+        train, test = make_random_split(length, test_ratio, seed)
 
         if validation_ratio:
-            train, val = random_split(names, validation_ratio, seed)
+            train_ind, val_ind = make_random_split(len(train), validation_ratio, seed)
+            train = [train[i] for i in train_ind]
+            val = [train[i] for i in val_ind]
     
     return train, val, test
 
 
 class WordDataset(Dataset):
-    def __init__(self, data, t_pos,
+    def __init__(self, 
+                 data_base, 
+                 t_idxs,
+                 in_types,
+                 attr_types,
+                 out_types,
                  pitch_aug_range=None):
         """
         data: (in, attr, out) - [seq(words)]
         """
         super().__init__()
         
-        self.data = data
-        self.t_pos = t_pos
+        with open(os.path.join(data_base, 'words.pkl'), 'rb') as f:
+            data = pickle.load(f)
         
-        self.length = len(data[0])
+        # filter out desired tokens for words, and filter out only desired tracks
+        in_pos = [self.meta['in_pos'][t] for t in in_types].sort()
+        self.in_data = [[[word[i] for i in in_pos] for word in track] for \
+                        idx, track in enumerate(data[0]) if idx in t_idxs]
+        attr_pos = [self.meta['attr_pos'][t] for t in attr_types].sort()
+        self.attr_data = [[[word[i] for i in attr_pos] for word in track] for \
+                        idx, track in enumerate(data[1]) if idx in t_idxs]
+        out_pos = [self.meta['out_pos'][t] for t in out_types].sort()
+        self.out_data = [[[word[i] for i in out_pos] for word in track] for \
+                        idx, track in enumerate(data[2]) if idx in t_idxs]
+        
+        self.length = len(self.in_data)
         
         def __len__(self):
             return self.length
         
         def __getitem__(self, index):
             data = {
-                'in': torch.as_tensor(data[0][index]),
-                'attr': torch.as_tensor(data[1][index]),
-                'out': torch.as_tensor(data[2][index])
+                'in': torch.as_tensor(self.in_data[index]),
+                'attr': torch.as_tensor(self.attr_data[index]),
+                'out': torch.as_tensor(self.out_data[index])
             }
             
             # optional augmentation
