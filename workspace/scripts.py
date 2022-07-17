@@ -77,12 +77,14 @@ class Controller():
                                                          self.train_ind,
                                                          in_types, attr_types, out_types), 
                                   batch_size=batch_size,
-                                  pin_memory=True, shuffle=True)
+                                  pin_memory=True, 
+                                  shuffle=True)
         val_loader = DataLoader(data_utils.WordDataset(self.data_base, 
                                                        self.val_ind,
                                                        in_types, attr_types, out_types),
                                 batch_size=batch_size,
-                                pin_memory=True, shuffle=True)
+                                pin_memory=True, 
+                                shuffle=True)
         
         # get vocabulary sizes
         in_pos, attr_pos, out_pos = self.new_positions((in_types, attr_types, out_types))
