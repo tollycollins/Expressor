@@ -239,8 +239,10 @@ class Expressor(nn.Module):
         for idx in range(len(self.out_t_types)):
             pred = pred_tokens[idx].permute(0, 2, 1)
             losses.append(criterion(pred, targets[..., idx]))
+            
+        overall_loss = torch.stack(losses).sum()
         
-        return losses    
+        return overall_loss, losses    
     
     def infer(self, tokens_out):
         """
