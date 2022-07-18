@@ -79,7 +79,7 @@ class WordDataset(Dataset):
         def __getitem__(self, index):
             data = {
                 'in': torch.as_tensor(self.in_data[index]),
-                'attr': torch.as_tensor(self.attr_data[index]),
+                'attr': torch.as_tensor(self.attr_data[index]) if self.attr_data[index] else None,
                 'out': torch.as_tensor(self.out_data[index])
             }
             

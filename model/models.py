@@ -27,12 +27,12 @@ class Expressor(nn.Module):
     Parallel encoder-decoder blocks with optional skip connections.  
     Generation-guiding tokens can be added to cross-attention latent space.  
     """
-    def __init__(self, enc_t_types, out_t_types,
-                 enc_vocab_sizes, enc_emb_dims,
-                 enc_dim, enc_n_layers, enc_heads, enc_ff_dim,
-                 dec_vocab_sizes, dec_emb_dims,
-                 dec_dim, dec_n_layers, dec_heads, dec_ff_dim,
-                 attr_types=[], attr_vocab_sizes=[], attr_emb_dims=[],
+    def __init__(self, 
+                 enc_t_types, attr_t_types, out_t_types,
+                 enc_vocab_sizes, attr_vocab_sizes, dec_vocab_sizes,
+                 enc_emb_dims, enc_dim, enc_n_layers, enc_heads, enc_ff_dim,
+                 dec_emb_dims, dec_dim, dec_n_layers, dec_heads, dec_ff_dim,
+                 attr_emb_dims=[],
                  attr_pos_emb=False,
                  enc_norm_layer=True,
                  enc_dropout=0.1, enc_act='relu',
@@ -44,9 +44,9 @@ class Expressor(nn.Module):
 
         # record hyperparameters
         self.enc_t_types = enc_t_types
-        self.attr_types = attr_types
+        self.attr_t_types = attr_t_types
         self.out_t_types = out_t_types
-
+        
         self.enc_vocab_sizes = enc_vocab_sizes
         self.enc_emb_dims = enc_emb_dims
         self.enc_dim = enc_dim
@@ -79,7 +79,7 @@ class Expressor(nn.Module):
         self.enc_embeddings = nn.ModuleList([
             Embedding(v, e) for v, e in zip(enc_vocab_sizes, enc_emb_dims)
         ])
-        if len(attr_types):
+        if len(attr_t_types):
             self.attr_embeddings = nn.ModuleList([
                 Embedding(v, e) for v, e in zip(attr_vocab_sizes, attr_emb_dims)
             ])
@@ -238,9 +238,9 @@ class Expressor(nn.Module):
 
         for idx in range(len(self.out_t_types)):
             pred = pred_tokens[idx].permute(0, 2, 1)
-            losses.append(criterion(pred, targets[..., idx]))
+            losses.append(criterion(pred, targets[..., idx]).detach_())
             
-        overall_loss = torch.stack(losses).sum()
+        overall_loss = torch.stack(losses).sum() / len(losses)
         
         return overall_loss, losses    
     

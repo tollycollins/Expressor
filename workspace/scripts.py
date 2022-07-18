@@ -5,17 +5,24 @@ References:
     https://github.com/YatingMusic/compound-word-transformer/blob/main/workspace/uncond/cp-linear/main-cp.py
     https://github.com/YatingMusic/MuseMorphose/blob/main/model/musemorphose.py
     https://github.com/YatingMusic/compound-word-transformer/blob/main/workspace/uncond/cp-linear/saver.py
+    https://www.jeremyjordan.me/nn-learning-rate/
 """
 import os
 import time
 import logging
 import pickle
 import json
+import math
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
+from torch.optim import Adam
+from torch.optim.lr_scheduler import (
+    CosineAnnealingWarmRestarts, CosineAnnealingLR, LambdaLR,
+)
+from torch.optim.swa_utils import AveragedModel, SWALR
 
 from model.models import Expressor
 from model.helpers import network_params
@@ -182,14 +189,23 @@ class Controller():
               batch_size=1,
               save_name=None,
               log_mode='w',
+              grad_acc_freq=None,
+              val_freq=5,
               in_types=[],
               attr_types=[],
               out_types=[],
               model_args=[],
               model_kwargs={},
               param_path=None,
-              init_lr=0.0001,
-              max_grad_norm=3):
+              init_lr=3e-3,
+              min_lr=1e-6,
+              weight_dec=0,
+              max_grad_norm=3,
+              restart_anneal=True,
+              sch_Tmult=1,
+              sch_warm=0.05,
+              swa_start=0.7,
+              swa_init=0.001):
 
         # get Dataloaders
         train_loader = DataLoader(data_utils.WordDataset(self.data_base, self.train_ind,
@@ -199,7 +215,7 @@ class Controller():
                                                        in_types, attr_types, out_types),
                                 batch_size=batch_size, pin_memory=True, shuffle=True)
         
-        # get vocabulary sizes
+        # get positions of tokens in words
         in_pos, attr_pos, out_pos = self.new_positions((in_types, attr_types, out_types))
 
         # get vocabulary sizes
@@ -208,8 +224,11 @@ class Controller():
         out_vocab_sizes = [len(self.idx2val[t]) for t in out_pos.values()]
     
         # initialise model
-        model = Expressor(*model_args, **model_kwargs)
-        model.train()
+        model = Expressor(in_types, attr_types, out_types,
+                          in_vocab_sizes, attr_vocab_sizes, out_vocab_sizes,
+                          *model_args, 
+                          is_training=True, 
+                          **model_kwargs)
         
         n_params = network_params(model)
         print(f"Model parameters: {n_params}")
@@ -220,48 +239,141 @@ class Controller():
             model.load_state_dict(torch.load(param_path))
 
         # optimiser
-        optimizer = torch.optim.Adam(model.parameters(), lr=init_lr)
+        optimizer = Adam(model.parameters(), lr=init_lr, weight_decay=weight_dec)
+        
+        # schedulers (chained)
+        schedulers = []
+        # cosine anneal lr decay
+        eta_min = math.pow(min_lr / init_lr, 2/3 if restart_anneal else 1)
+        schedulers.append(CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-3))
+        # add restart element to lr decay
+        if restart_anneal:
+            schedulers.append(CosineAnnealingWarmRestarts(
+                optimizer, sch_warm * epochs, sch_Tmult, eta_min=math.sqrt(eta_min)
+            ))
+        # add warm-up to lr
+        if sch_warm:
+            w_len = sch_warm * epochs
+            schedulers.append(LambdaLR(
+                optimizer, lambda x: min(1, 0.7 + 0.3 * (1 - (w_len - x) / w_len))
+            ))
+        
+        # stochastic weight averaging
+        swa_model = None
+        if swa_start:
+            swa_scheduler = SWALR(optimizer, swa_lr=swa_init)
 
         # saver agent
         saver = SaverAgent(self.path, name=save_name, mode=log_mode)
         saver.add_summary_msg(' > # parameters: {n_params}')
+        saver.save_params({
+            'in_pos': in_pos,
+            'attr_pos': attr_pos,
+            'out_pos': out_pos,
+            'model_args': [in_types, attr_types, out_types, 
+                           in_vocab_sizes, attr_vocab_sizes, out_vocab_sizes, 
+                           *model_args],
+            'model_kwargs': model_kwargs
+        })
         
         # handle device
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         model.to(device)
         
+        # set up gradient accumulation over multiple batches
+        if not grad_acc_freq:
+            grad_acc_freq = 1        
+        
         print("Starting training ...")
 
-        # training loop
-        start_time = time.time()
-        
+        # training loop        
         for epoch in range(epochs):
+            
+            # record time for logging
+            start_time = time.time()
+            
             # track cumulative loss
-            total_loss = 0
-            total_losses = np.zeros(7)
+            cum_loss = 0
+            cum_losses = np.zeros(len(out_vocab_sizes))
+            
+            # reset gradients
+            optimizer.zero_grad()
         
-            for data in train_loader:
+            for idx, data in enumerate(train_loader, 1):
                 
                 saver.global_step_increment()
                 
                 # unpack data
                 enc_in = data['in'].to(device)
                 attr_in = data['attr'].to(device)
-                dec_in = data['out'].to(device)
+                targets = data['out'].to(device)
                 
-                # train
+                # forward pass
+                tokens_out, _ = model(enc_in, targets, attr_in, state=None)
                 
-                loss = ...
+                # calculate losses
+                total_loss, losses = model.compute_loss(tokens_out, targets)
                 
-                # update
-                optimizer.zero_grad()
-                loss.backward()
-                if max_grad_norm is not None:
-                    clip_grad_norm_(model.parameters(), max_grad_norm)
-                optimizer.step()
+                # backward pass
+                if (len(train_loader) - idx) >= grad_acc_freq:
+                    total_loss /= grad_acc_freq
+                total_loss.backward()
                 
+                # update cumulative loss for epoch
+                total_loss.detach_()
+                cum_loss += total_loss.item()
+                cum_losses += np.array([l.item() for l in losses])
                 
-    
+                # weights update
+                if idx % grad_acc_freq == 0 or (len(train_loader) - idx) < grad_acc_freq:
+                    if max_grad_norm is not None:
+                        clip_grad_norm_(model.parameters(), max_grad_norm)
+                    optimizer.step()
+                    optimizer.zero_grad()
+            
+            # update learning rate
+            if epoch > epochs * swa_start:
+                if swa_model is None:
+                    swa_model = AveragedModel(model)
+                else:
+                    swa_model.update_parameters(model)
+                    swa_scheduler.step()  
+            else:
+                for scheduler in schedulers:
+                    scheduler.step()
+            
+            # print
+            runtime = time.time() - start_time
+            cum_loss /= len(train_loader)
+            cum_losses /= len(train_loader)
+            print(f"----- epoch: {epoch + 1}/{epochs} | Loss: {cum_loss:08f} | time: {runtime} -----")
+            print('    > ',' | '.join(f"{t}: {l:06f}" for t, l in zip(out_pos.values(), cum_losses)))
+            
+            # log training info
+            saver.add_summary('epoch loss', cum_loss)
+            for t_type, loss in zip(out_pos.values, cum_losses):
+                saver.add_summary(f"{t_type} loss", loss)
+            
+            # validation
+            if (epoch + 1) % val_freq == 0 or epoch + 1 == epochs:
+                _ = self.evaluate(model,
+                                  device,
+                                  val_loader,
+                                  ...)
+
+                # put model back to training mode
+                model.train()
+                
+                # log validation info
+                ...
+                
+                # save model
+                ...
+            
+                
+    def evaluate(self):
+        ...
+        return ...
 
     
     
