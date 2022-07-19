@@ -30,7 +30,7 @@ class Expressor(nn.Module):
     Generation-guiding tokens can be added to cross-attention latent space.  
     """
     def __init__(self, 
-                 enc_t_types, attr_t_types, out_t_types,
+                 in_t_types, attr_t_types, out_t_types,
                  enc_vocab_sizes, attr_vocab_sizes, dec_vocab_sizes,
                  enc_emb_dims, enc_dim, enc_n_layers, enc_heads, enc_ff_dim,
                  dec_emb_dims, dec_dim, dec_n_layers, dec_heads, dec_ff_dim,
@@ -45,7 +45,7 @@ class Expressor(nn.Module):
         super().__init__()
 
         # record hyperparameters
-        self.enc_t_types = enc_t_types
+        self.in_t_types = in_t_types
         self.attr_t_types = attr_t_types
         self.out_t_types = out_t_types
         

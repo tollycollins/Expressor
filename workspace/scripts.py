@@ -6,6 +6,21 @@ References:
     https://github.com/YatingMusic/MuseMorphose/blob/main/model/musemorphose.py
     https://github.com/YatingMusic/compound-word-transformer/blob/main/workspace/uncond/cp-linear/saver.py
     https://www.jeremyjordan.me/nn-learning-rate/
+
+#  file system linked to Controller object:
+# Saves
+#   Words_0
+#       controller_save
+#       Run_0_[name]
+#           saved_models (by condition)
+#           saved optimizer
+#           txt file training log
+#           save parameters as json
+#           tests
+#               test outputs
+#               test logs
+#       Run_1_[name]
+#           ...
 """
 import os
 import time
@@ -46,37 +61,42 @@ class SaverAgent():
         Opens a file for writing only. Overwrites the file if the file exists.
         If the file does not exist, creates a new file for writing.
     """
-    def init(self, 
-             save_root,
-             name=None, 
-             mode='w'):
+    def init(self, save_root,
+                   save_name=None, 
+                   exp_dir=None,
+                   filemode='w'):
         
         self.init_time = time.time()
         self.global_step = 0
         
-        # directory name
-        save_name = 'run_000'
-        names = sorted(filter(lambda x: os.path.isdir(os.path.join(save_root, x)), 
-                                  os.listdir(save_root)))
-        if names:
-            save_name = f"run_{int(names[-1][4:7]) + 1:03}"
-        if name:
-            save_name += f"_{name}"
+        if save_name[0:4] != 'run_':
+            # directory name
+            name = 'run_000'
+            names = sorted(filter(lambda x: os.path.isdir(os.path.join(save_root, x)), 
+                                    os.listdir(save_root)))
+            if names:
+                name = f"run_{int(names[-1][4:7]) + 1:03}"
+            if save_name:
+                name += f"_{save_name}"
+            
+            # make directory
+            os.makedirs(os.path.join(save_root, name), exist_ok=True)
+            save_name = name
         
-        self.exp_dir = os.path.join(save_root, save_name)
+        self.save_dir = os.path.join(save_root, save_name)
         
-        # make directory
-        os.makedirs(os.path.join(save_root, self.name), exist_ok=True)
-        
+        # allow for different save directory
+        self.exp_dir = self.save_dir if not exp_dir else os.path.join(self.save_dir, exp_dir)
+    
         # logging config
         path_logger = os.path.join(self.exp_dir, 'log.txt')
         logging.basicConfig(
                 level=logging.DEBUG,
                 format='%(message)s',
                 filename=path_logger,
-                filemode=mode)
+                filemode=filemode)
         self.logger = logging.getLogger('training monitor')
-
+        
         # for checking saving
         self.best_val = None
         
@@ -86,44 +106,41 @@ class SaverAgent():
     def add_summary_msg(self, msg):
         self.logger.debug(msg)
 
-    def add_summary(self, 
-                    key, 
-                    val, 
-                    step=None, 
-                    cur_time=None):
-
+    def add_summary(self, key, 
+                          val, 
+                          step=None, 
+                          cur_time=None):
+        
         if cur_time is None:
             cur_time = time.time() - self.init_time
         if step is None:
             step = self.global_step
-
+        
         # write msg (key, val, step, time)
         if isinstance(val, float):
             msg_str = f'{key:10s} | {val:.10f} | {step:10d} | {cur_time}'   
         else:
             msg_str = f'{key:10s} | {val} | {step:10d} | {cur_time}'
-
+        
         self.logger.debug(msg_str)        
         
-    def save_model(self, 
-                   model, 
-                   optimizer=None, 
-                   outdir=None, 
-                   name='model'):
-
+    def save_model(self, model, 
+                         optimizer=None, 
+                         outdir=None, 
+                         name='model'):
+        
         if outdir is None:
-            outdir = self.exp_dir
+            outdir = self.save_dir
         print(f' [*] saving model to {outdir}, name: {name}')
-        torch.save(model, os.path.join(outdir, name+'.pt'))
-        torch.save(model.state_dict(), os.path.join(outdir, name+'_params.pt'))
+        torch.save(model, os.path.join(outdir, name + '.pt'))
+        torch.save(model.state_dict(), os.path.join(outdir, name + '_params.pt'))
 
         if optimizer is not None:
-            torch.save(optimizer.state_dict(), os.path.join(outdir, name+'_opt.pt'))
+            torch.save(optimizer.state_dict(), os.path.join(outdir, name + '_opt.pt'))
     
-    def check_save(self,
-                   metric,
-                   better='lower'):
-
+    def check_save(self, metric,
+                         better='lower'):
+        
         if self.best_val == None:
             self.best_val = metric
             # for early stopping
@@ -141,13 +158,12 @@ class SaverAgent():
         self.improvement_ctr += 1
         return False, self.improvement_ctr
             
-    def load_model(self, 
-                   path_exp=None, 
-                   device='cpu', 
-                   name='model.pt'):
-
+    def load_model(self, path_exp=None, 
+                         device='cpu', 
+                         name='model.pt'):
+        
         if not path_exp:
-            path_exp = self.exp_dir
+            path_exp = self.save_dir
         path_pt = os.path.join(path_exp, name)
         print(' [*] restoring model from', path_pt)
         model = torch.load(path_pt, map_location=torch.device(device))
@@ -156,14 +172,17 @@ class SaverAgent():
     def global_step_increment(self):
         self.global_step += 1
         
-    def save_params(self, 
-                    **kwargs):
+    def save_params(self, **kwargs):
         # make directory
-        save_path = os.path.join(self.exp_dir, 'training_params.json')
+        save_path = os.path.join(self.save_dir, 'training_params.json')
         os.makedirs(save_path, exist_ok=True)
         with open(save_path) as f:
             json.dump(kwargs)
-        
+    
+    def load_params(self):
+        with open(os.path.join(self.save_dir, 'training_params.json')) as f:
+            params = json.load(f)
+        return params
 
 
 class Controller():
@@ -171,17 +190,16 @@ class Controller():
     Handles training and inference scripts
     Handles hyperparameter searching
     """
-    def __init__(self, 
-                 path,
-                 data_base,
-                 val_ratio,
-                 test_ratio,
-                 seed=1,
-                 split_mode='random'):
+    def __init__(self, path,
+                       data_base,
+                       val_ratio,
+                       test_ratio,
+                       seed=1,
+                       split_mode='random'):
         
         # paths
-        self.path = path
-        self.data_base = data_base
+        self.path = path                    # this object
+        self.data_base = data_base          # data directory
         
         # data split parameters
         self.val_ratio = val_ratio
@@ -212,35 +230,34 @@ class Controller():
     def class_save(self):
         with open(self.path, 'wb') as f:
             pickle.dump(self, f)
-        print("Trainer object saved")
+        print(f"Trainer object saved at {self.path}")
 
-
-    def train(self,
-              epochs,
-              batch_size=1,
-              save_name=None,
-              log_mode='w',
-              grad_acc_freq=None,
-              val_freq=5,
-              in_types=[],
-              attr_types=[],
-              out_types=[],
-              model_args=[],
-              model_kwargs={},
-              param_path=None,
-              init_lr=3e-3,
-              min_lr=1e-6,
-              weight_dec=0,
-              max_grad_norm=3,
-              restart_anneal=True,
-              sch_Tmult=1,
-              sch_warm=0.05,
-              swa_start=0.7,
-              swa_init=0.001,
-              n_eval_init=1,
-              save_cond='loss',
-              early_stop=50):
-
+    
+    def train(self, epochs,
+                    batch_size=1,
+                    save_name=None,
+                    log_mode='w',
+                    grad_acc_freq=None,
+                    val_freq=5,
+                    in_types=[],
+                    attr_types=[],
+                    out_types=[],
+                    model_args=[],
+                    model_kwargs={},
+                    param_path=None,
+                    init_lr=3e-3,
+                    min_lr=1e-6,
+                    weight_dec=0,
+                    max_grad_norm=3,
+                    restart_anneal=True,
+                    sch_Tmult=1,
+                    sch_warm=0.05,
+                    swa_start=0.7,
+                    swa_init=0.001,
+                    n_eval_init=1,
+                    save_cond='loss',
+                    early_stop=50):
+        
         # get Dataloaders
         train_loader = DataLoader(data_utils.WordDataset(self.data_base, self.train_ind,
                                                          in_types, attr_types, out_types), 
@@ -288,12 +305,12 @@ class Controller():
         # cosine anneal lr decay
         eta_min = math.pow(min_lr / init_lr, 2/3 if restart_anneal else 1)
         schedulers.append(CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-3))
-        # add restart element to lr decay
+        # add restart element to lr decay (optional)
         if restart_anneal:
             schedulers.append(CosineAnnealingWarmRestarts(
                 optimizer, sch_warm * epochs, sch_Tmult, eta_min=math.sqrt(eta_min)
             ))
-        # add warm-up to lr
+        # add warm-up to lr (optional)
         if sch_warm:
             w_len = sch_warm * epochs
             schedulers.append(LambdaLR(
@@ -306,17 +323,13 @@ class Controller():
             swa_scheduler = SWALR(optimizer, swa_lr=swa_init)
 
         # saver agent
-        saver = SaverAgent(self.path, name=save_name, mode=log_mode)
+        saver = SaverAgent(self.path, save_name=save_name, filemode=log_mode)
         saver.add_summary_msg(' > # parameters: {n_params}')
-        saver.save_params({
-            'in_pos': in_pos,
-            'attr_pos': attr_pos,
-            'out_pos': out_pos,
-            'model_args': [in_types, attr_types, out_types, 
-                           in_vocab_sizes, attr_vocab_sizes, out_vocab_sizes, 
-                           *model_args],
-            'model_kwargs': model_kwargs
-        })
+        saver.save_params(in_pos=in_pos, attr_pos=attr_pos, out_pos=out_pos,
+                          model_args=[in_types, attr_types, out_types, 
+                                      in_vocab_sizes, attr_vocab_sizes, out_vocab_sizes, 
+                                      *model_args],
+                          model_kwargs=model_kwargs)
         
         # handle device
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -392,8 +405,10 @@ class Controller():
             runtime = time.time() - start_time
             cum_loss /= len(train_loader)
             cum_losses /= len(train_loader)
-            print(f"----- epoch: {epoch + 1}/{epochs} | Loss: {cum_loss:08f} | time: {runtime} -----")
-            print('    > ', ' | '.join(f"{t}: {l:06f}" for t, l in zip(out_pos.values(), cum_losses)))
+            print(f"----- epoch: {epoch + 1}/{epochs} | Loss: {cum_loss:08f}" \
+                  f"| time: {runtime} -----")
+            print('    > ', ' | '.join(f"{t}: {l:06f}" for t, l in zip(out_pos.values(), 
+                                                                       cum_losses)))
             
             # log training info
             saver.add_summary('epoch loss', cum_loss)
@@ -417,7 +432,7 @@ class Controller():
                 
                 # print validation info
                 runtime = time.time() - eval_start_time
-                print(f"*** Validation | Loss: {metrics['loss']:08f} | time: {runtime} ***")
+                print(f"*** Validation Loss: {metrics['loss']:08f} | time: {runtime} ***")
                 print('    > ', ' | '.join(f"{t}: {l:06f}" for t, l in zip(out_pos.values(), 
                                                                            metrics['losses'])))
                 
@@ -438,14 +453,15 @@ class Controller():
                     saver.add_summary_msg(f"Early stopping occurred after {epoch + 1} epochs")
                     print("Early stopping occurred")
                     break
+
+        print("Training complete")
             
                 
-    def evaluate(self,
-                 model,
-                 device,
-                 val_loader,
-                 n_eval_init,
-                 output_path=None):
+    def evaluate(self, model,
+                       device,
+                       val_loader,
+                       n_eval_init,
+                       output_path=None):
         
         # ensure model is in evaluation mode
         model.eval()
@@ -486,9 +502,23 @@ class Controller():
 
     
     
-    def test(self):
-        ...
-    
+    def test(self, dir_name,
+                   filemode='w',
+                   n_tests=1):
+        
+        # get Saver agent
+        head, tail = os.path.split(os.path.normpath(dir_name))
+        saver = SaverAgent(head, save_name=tail, exp_dir='tests', filemode=filemode)
+        
+        # load model
+        model = saver.load_model()
+        
+        # get dataset
+        dataset = data_utils.WordDataset(self.data_base, self.test_ind,
+                                         model.in_types, model.attr_types, model.out_types)
+
+        # --- names for filenames
+
     
     def new_positions(self, t_types_tup):
         """
@@ -510,15 +540,3 @@ class Controller():
         ...
 
 
-
-#  file system:
-# Saves
-#   Words_0
-#       controller_save
-#       Run_0_[name]
-#           saved_models (by condition)
-#           saved optimizer
-#           txt file training log
-#           save parameters as json
-#       Run_1_[name]
-#           ...
