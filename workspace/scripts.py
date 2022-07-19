@@ -208,7 +208,8 @@ class Controller():
               sch_Tmult=1,
               sch_warm=0.05,
               swa_start=0.7,
-              swa_init=0.001):
+              swa_init=0.001,
+              n_eval_init=1):
 
         # get Dataloaders
         train_loader = DataLoader(data_utils.WordDataset(self.data_base, self.train_ind,
@@ -290,6 +291,7 @@ class Controller():
         # handle device
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         model.to(device)
+        eval_model.to(device)
         
         # set up gradient accumulation over multiple batches
         if not grad_acc_freq:
@@ -371,9 +373,9 @@ class Controller():
                 
                 
                 _ = self.evaluate(eval_model,
-                                  device,
-                                  val_loader,
-                                  ...)
+                                  device=device,
+                                  val_loader=val_loader,
+                                  n_eval_init=n_eval_init)
 
                 # ensure model is in training mode
                 model.train()
@@ -388,7 +390,8 @@ class Controller():
     def evaluate(self,
                  model,
                  device,
-                 val_loader):
+                 val_loader,
+                 n_eval_init):
         
         # ensure model is in evaluation mode
         model.eval()
@@ -405,11 +408,11 @@ class Controller():
                 attr_in = data['attr'].to(device)
                 targets = data['out'].to(device)
                 
-                # get initial value for autoregressive inference
-                y_init = ...
+                # get initial words for autoregressive inference
+                y_init = targets[:n_eval_init]
                 
                 # forward pass
-                y_pred = model.infer(enc_in, y_init, attr_in)
+                y_pred = model.infer(enc_in, targets, y_init, attr_in)
                 
                 # calculate losses
                 total_loss, losses = model.compute_loss(y_pred, targets)                               

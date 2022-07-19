@@ -154,7 +154,7 @@ class Expressor(nn.Module):
         # initialise weights
         self.apply(weights_init)
 
-    def forward(self, x, y, attr=None, state=None):
+    def forward(self, x, y, attr=None, state=None, y_type=None):
         """
         linear transformer: b x seq_len x dim
         x: compund words (integer encodings); b x s x d x t_type
@@ -180,7 +180,7 @@ class Expressor(nn.Module):
         dec_emb = torch.cat([e(y[..., i]) for i, e in enumerate(self.dec_embeddings)], 
                             dim=-1)
         dec_emb = self.dec_emb_lin(dec_emb)
-        dec_emb = self.dec_pos(dec_emb)
+        dec_emb = self.dec_pos(dec_emb)            
         
         # encoder
         h, skips = self.enc_block(enc_emb)
@@ -207,11 +207,17 @@ class Expressor(nn.Module):
         
         # type residual (optional)
         if self.out_t_types[0] == 'type':
-            # get type prediction before residual connection
-            y_type = self.proj[0](out)
+            if self.is_training:
+                # get type prediction before residual connection
+                y_type = self.proj[0](out)
 
-            # concatenate type residual
-            type_res = self.dec_embeddings(y[..., 0])
+                # concatenate type residual
+                type_res = self.dec_embeddings[0](y[..., 0])
+                
+            else:
+                type_res = self.dec_embeddings[0](y_type)
+            
+            # concatenate type residual    
             out = torch.cat([out, type_res], dim=-1)
             out = self.res_concat_type(out)
         
@@ -246,7 +252,7 @@ class Expressor(nn.Module):
         
         return overall_loss, losses    
     
-    def infer(self, x, y_init, attr=None):
+    def infer(self, x, target, y_init, attr=None):
         """
         Infer an output sequence from a given input and attribute
         """
@@ -255,17 +261,27 @@ class Expressor(nn.Module):
         
         # initialise output sequence
         output = []
-        output.append(copy.deepcopy(y_init))
-        y = y_init
+        output.append(y_init[0])
         
-        # infer output sequence
-        for i in range(1, x.size()[-2]):
-            # forward pass
-            y, state = self.forward(x, y, attr, state)
-            # copy to output list
+        # forward passes for initial sequence to initialise hidden states
+        for i, y in enumerate(y_init, 1):
+            # get type of next output for skip connection
+            y_type = y[0]
+            # copy original y to output list
             output.append(copy.deepcopy(y))
+            # forward pass
+            h = y_init[i - 1]
+            h, state = self.forward(x, h, attr, state, y_type)
+        
+        # infer rest of output sequence
+        for i in range(x.size()[-2] - len(y_init)):
+            # forward pass
+            y_type = target[len(y_init) + i]
+            h, state = self.forward(x, h, attr, state, y_type)
+            # copy to output list
+            output.append(copy.deepcopy(h))
             # for putting back into model (convert token logits to int)
-            y = [torch.argmax(t, 2) for t in y]
+            h = [torch.argmax(t, 2) for t in h]
         
         return output
     
