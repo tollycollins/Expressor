@@ -113,7 +113,7 @@ class RecurrentDecoderBlock(nn.module):
 
     def forward(self, y, zs, state=None):
         """
-        y: previous output (batch_len, dim_dec)
+        y: previous output (batch_len, seq_len, dim_dec)
         zs: list of cross attention keys/values (batch_len, seq_len, dim_attr)
         state: List of objects to be passed to each transformer decoder layers
         """

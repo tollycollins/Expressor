@@ -15,6 +15,7 @@ import json
 import math
 
 import numpy as np
+
 import torch
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
@@ -23,6 +24,8 @@ from torch.optim.lr_scheduler import (
     CosineAnnealingWarmRestarts, CosineAnnealingLR, LambdaLR,
 )
 from torch.optim.swa_utils import AveragedModel, SWALR
+
+from fast_transformers.utils import make_mirror
 
 from model.models import Expressor
 from model.helpers import network_params
@@ -230,6 +233,14 @@ class Controller():
                           is_training=True, 
                           **model_kwargs)
         
+        # pair model with a recurrent version for evaluation
+        eval_model = Expressor(in_types, attr_types, out_types,
+                               in_vocab_sizes, attr_vocab_sizes, out_vocab_sizes,
+                               *model_args, 
+                               is_training=False, 
+                               **model_kwargs)
+        make_mirror(model, eval_model)
+        
         n_params = network_params(model)
         print(f"Model parameters: {n_params}")
         
@@ -356,12 +367,15 @@ class Controller():
             
             # validation
             if (epoch + 1) % val_freq == 0 or epoch + 1 == epochs:
-                _ = self.evaluate(model,
+                
+                
+                
+                _ = self.evaluate(eval_model,
                                   device,
                                   val_loader,
                                   ...)
 
-                # put model back to training mode
+                # ensure model is in training mode
                 model.train()
                 
                 # log validation info
@@ -371,10 +385,42 @@ class Controller():
                 ...
             
                 
-    def evaluate(self):
-        ...
+    def evaluate(self,
+                 model,
+                 device,
+                 val_loader):
+        
+        # ensure model is in evaluation mode
+        model.eval()
+        
+        # track cumulative loss
+        cum_loss = 0
+        cum_losses = np.zeros(len(model.dec_vocab_sizes))
+        
+        with torch.no_grad():
+            for data in val_loader:
+                
+                 # unpack data
+                enc_in = data['in'].to(device)
+                attr_in = data['attr'].to(device)
+                targets = data['out'].to(device)
+                
+                # get initial value for autoregressive inference
+                y_init = ...
+                
+                # forward pass
+                y_pred = model.infer(enc_in, y_init, attr_in)
+                
+                # calculate losses
+                total_loss, losses = model.compute_loss(y_pred, targets)                               
+        
+        
         return ...
 
+    
+    
+    def test(self):
+        ...
     
     
     def new_positions(self, t_types_tup):
@@ -393,13 +439,9 @@ class Controller():
         return out
 
     
+    def hyper_search(self):
+        ...
 
-
-# class Tester():
-#     def __init__(self, 
-#                  path,
-#                  data_base):
-#         self.path = path
 
 
 #  file system:

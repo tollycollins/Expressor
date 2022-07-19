@@ -7,6 +7,8 @@ References:
     https://fast-transformers.github.io/api_docs/fast_transformers/transformers.html
     https://github.com/YatingMusic/MuseMorphose/blob/main/model/musemorphose.py
 """
+import copy
+
 import numpy as np
 
 import torch
@@ -200,7 +202,7 @@ class Expressor(nn.Module):
         if self.is_training:
             out = self.dec_block(dec_emb, zs)
         else:
-            dec_emb = dec_emb.squeeze(0)
+            dec_emb = dec_emb.squeeze(1)
             out, state = self.dec_block(dec_emb, zs, state)
         
         # type residual (optional)
@@ -219,7 +221,7 @@ class Expressor(nn.Module):
         else:
             tokens_out = [p(out) for p in self.proj]
 
-        # tokens out dims: (batch, seq_len, voc_size)
+        # tokens out dims for each token in list: (batch, seq_len, voc_size)
 
         return tokens_out, state
 
@@ -244,9 +246,26 @@ class Expressor(nn.Module):
         
         return overall_loss, losses    
     
-    def infer(self, tokens_out):
+    def infer(self, x, y_init, attr=None):
         """
-        convert token logits to word
+        Infer an output sequence from a given input and attribute
         """
-        return torch.cat([torch.argmax(t, 2, keepdim=True) for t in tokens_out], dim=-1)
-
+        # initialise recurrent hidden state
+        state = None
+        
+        # initialise output sequence
+        output = []
+        output.append(copy.deepcopy(y_init))
+        y = y_init
+        
+        # infer output sequence
+        for i in range(1, x.size()[-2]):
+            # forward pass
+            y, state = self.forward(x, y, attr, state)
+            # copy to output list
+            output.append(copy.deepcopy(y))
+            # for putting back into model (convert token logits to int)
+            y = [torch.argmax(t, 2) for t in y]
+        
+        return output
+    
