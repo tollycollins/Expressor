@@ -35,6 +35,7 @@ import data_utils
 class SaverAgent():
     """
     Handles saving of training data
+    Handles model saving
     Creates a new directory for each training run
     
     file modes
@@ -75,6 +76,12 @@ class SaverAgent():
                 filename=path_logger,
                 filemode=mode)
         self.logger = logging.getLogger('training monitor')
+
+        # for checking saving
+        self.best_val = None
+        
+        # for early stopping
+        self.improvement_ctr = 0
         
     def add_summary_msg(self, msg):
         self.logger.debug(msg)
@@ -112,6 +119,27 @@ class SaverAgent():
 
         if optimizer is not None:
             torch.save(optimizer.state_dict(), os.path.join(outdir, name+'_opt.pt'))
+    
+    def check_save(self,
+                   metric,
+                   better='lower'):
+
+        if self.best_val == None:
+            self.best_val = metric
+            # for early stopping
+            self.improvement_ctr = 0
+            return False, 0
+        
+        elif better == 'lower' and metric < self.best_val or \
+             better == 'higher' and metric > self.best_val:
+            self.best_val = metric
+            # for early stopping
+            self.improvement_ctr = 0
+            return True, 0
+        
+        # for early stopping
+        self.improvement_ctr += 1
+        return False, self.improvement_ctr
             
     def load_model(self, 
                    path_exp=None, 
@@ -209,7 +237,9 @@ class Controller():
               sch_warm=0.05,
               swa_start=0.7,
               swa_init=0.001,
-              n_eval_init=1):
+              n_eval_init=1,
+              save_cond='loss',
+              early_stop=50):
 
         # get Dataloaders
         train_loader = DataLoader(data_utils.WordDataset(self.data_base, self.train_ind,
@@ -343,6 +373,9 @@ class Controller():
                         clip_grad_norm_(model.parameters(), max_grad_norm)
                     optimizer.step()
                     optimizer.zero_grad()
+                
+                # log
+                saver.add_summary('batch loss', total_loss.item())
             
             # update learning rate
             if epoch > epochs * swa_start:
@@ -360,7 +393,7 @@ class Controller():
             cum_loss /= len(train_loader)
             cum_losses /= len(train_loader)
             print(f"----- epoch: {epoch + 1}/{epochs} | Loss: {cum_loss:08f} | time: {runtime} -----")
-            print('    > ',' | '.join(f"{t}: {l:06f}" for t, l in zip(out_pos.values(), cum_losses)))
+            print('    > ', ' | '.join(f"{t}: {l:06f}" for t, l in zip(out_pos.values(), cum_losses)))
             
             # log training info
             saver.add_summary('epoch loss', cum_loss)
@@ -370,28 +403,49 @@ class Controller():
             # validation
             if (epoch + 1) % val_freq == 0 or epoch + 1 == epochs:
                 
+                # get time for logging
+                eval_start_time = time.time()
                 
-                
-                _ = self.evaluate(eval_model,
-                                  device=device,
-                                  val_loader=val_loader,
-                                  n_eval_init=n_eval_init)
+                # get evaluation metrics
+                metrics = self.evaluate(eval_model,
+                                        device=device,
+                                        val_loader=val_loader,
+                                        n_eval_init=n_eval_init)
 
                 # ensure model is in training mode
                 model.train()
                 
-                # log validation info
-                ...
+                # print validation info
+                runtime = time.time() - eval_start_time
+                print(f"*** Validation | Loss: {metrics['loss']:08f} | time: {runtime} ***")
+                print('    > ', ' | '.join(f"{t}: {l:06f}" for t, l in zip(out_pos.values(), 
+                                                                           metrics['losses'])))
                 
+                # log validation info
+                saver.add_summary('validation loss', metrics['loss'])
+                for t_type, loss in zip(out_pos.values, metrics['losses']):
+                    saver.add_summary(f"validation {t_type} loss", loss)
+
                 # save model
-                ...
+                if save_cond == 'val_loss':
+                    save, es_ctr = saver.check_save(metrics['loss'], 'lower')
+                
+                if save:
+                    saver.save_model(model, optimizer)
+                
+                # early stopping
+                if early_stop and es_ctr > early_stop / val_freq:
+                    saver.add_summary_msg(f"Early stopping occurred after {epoch + 1} epochs")
+                    print("Early stopping occurred")
+                    break
             
                 
     def evaluate(self,
                  model,
                  device,
                  val_loader,
-                 n_eval_init):
+                 n_eval_init,
+                 output_path=None):
         
         # ensure model is in evaluation mode
         model.eval()
@@ -417,8 +471,18 @@ class Controller():
                 # calculate losses
                 total_loss, losses = model.compute_loss(y_pred, targets)                               
         
+                cum_loss += total_loss
+                cum_losses += np.array([l.item() for l in losses])
+
+                # Evaluation metrics
+                ...
         
-        return ...
+        # record output info
+        output = {}
+        output['loss'] = cum_loss / len(val_loader)
+        output['losses'] = cum_losses / len(val_loader)
+        
+        return output
 
     
     
@@ -457,3 +521,4 @@ class Controller():
 #           txt file training log
 #           save parameters as json
 #       Run_1_[name]
+#           ...
