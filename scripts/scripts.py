@@ -7,20 +7,25 @@ References:
     https://github.com/YatingMusic/compound-word-transformer/blob/main/workspace/uncond/cp-linear/saver.py
     https://www.jeremyjordan.me/nn-learning-rate/
 
-#  file system linked to Controller object:
-# Saves
-#   Words_0
-#       controller_save
-#       Run_0_[name]
-#           saved_models (by condition)
-#           saved optimizer
-#           txt file training log
-#           save parameters as json
-#           tests
-#               test outputs
-#               test logs
-#       Run_1_[name]
-#           ...
+ file system linked to Controller object:
+    Saves
+        Words_0
+            controller_save
+            Run_000_[name]
+                saved_models (by condition)
+                saved optimizer
+                txt file training log
+                save parameters as json
+                Tests
+                    test outputs
+                    test logs
+                Renders
+                    outputs
+                        midi renders of test outputs
+                    targets
+                        midi renders fo targets from available tokens
+            Run_001_[name]
+                ...
 """
 import os
 import time
@@ -576,4 +581,7 @@ class Controller():
     def hyper_search(self):
         ...
 
+
+    def render(self):
+        ...
 
