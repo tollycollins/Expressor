@@ -47,10 +47,12 @@ def get_split_data(names, test_ratio=0.1, validation_ratio=0.2,
 class WordDataset(Dataset):
     def __init__(self, 
                  data_base, 
+                 meta,
                  t_idxs,
                  in_types,
                  attr_types,
                  out_types,
+                 max_len=None,
                  pitch_aug_range=None):
         """
         data: (in, attr, out) - [seq(words)]
@@ -61,17 +63,23 @@ class WordDataset(Dataset):
             data = pickle.load(f)
         
         # filter out desired tokens for words, and filter out only desired tracks
-        in_pos = [self.meta['in_pos'][t] for t in in_types].sort()
+        in_pos = [meta['in_pos'][t] for t in in_types].sort()
         self.in_data = [[[word[i] for i in in_pos] for word in track] for \
                         idx, track in enumerate(data[0]) if idx in t_idxs]
-        attr_pos = [self.meta['attr_pos'][t] for t in attr_types].sort()
+
+        attr_pos = [meta['attr_pos'][t] for t in attr_types].sort()
         self.attr_data = [[[word[i] for i in attr_pos] for word in track] for \
                         idx, track in enumerate(data[1]) if idx in t_idxs]
-        out_pos = [self.meta['out_pos'][t] for t in out_types].sort()
+
+        out_pos = [meta['out_pos'][t] for t in out_types].sort()
         self.out_data = [[[word[i] for i in out_pos] for word in track] for \
                         idx, track in enumerate(data[2]) if idx in t_idxs]
+
+        self.names = [meta['words_info']['names'][i] for i in t_idxs]
         
         self.length = len(self.in_data)
+        if max_len:
+            self.length = min(self.length, max_len)
         
         def __len__(self):
             return self.length
@@ -80,7 +88,8 @@ class WordDataset(Dataset):
             data = {
                 'in': torch.as_tensor(self.in_data[index]),
                 'attr': torch.as_tensor(self.attr_data[index]) if self.attr_data[index] else None,
-                'out': torch.as_tensor(self.out_data[index])
+                'out': torch.as_tensor(self.out_data[index]),
+                'name': self.names[index]
             }
             
             # optional augmentation

@@ -85,7 +85,7 @@ class SaverAgent():
         
         self.save_dir = os.path.join(save_root, save_name)
         
-        # allow for different save directory
+        # allow for different log directory
         self.exp_dir = self.save_dir if not exp_dir else os.path.join(self.save_dir, exp_dir)
     
         # logging config
@@ -259,10 +259,12 @@ class Controller():
                     early_stop=50):
         
         # get Dataloaders
-        train_loader = DataLoader(data_utils.WordDataset(self.data_base, self.train_ind,
+        train_loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
+                                                         self.train_ind,
                                                          in_types, attr_types, out_types), 
                                   batch_size=batch_size, pin_memory=True, shuffle=True)
-        val_loader = DataLoader(data_utils.WordDataset(self.data_base, self.val_ind,
+        val_loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
+                                                       self.val_ind,
                                                        in_types, attr_types, out_types),
                                 batch_size=batch_size, pin_memory=True, shuffle=True)
         
@@ -459,7 +461,7 @@ class Controller():
                 
     def evaluate(self, model,
                        device,
-                       val_loader,
+                       loader,
                        n_eval_init,
                        output_path=None):
         
@@ -471,12 +473,13 @@ class Controller():
         cum_losses = np.zeros(len(model.dec_vocab_sizes))
         
         with torch.no_grad():
-            for data in val_loader:
+            for data in loader:
                 
                  # unpack data
                 enc_in = data['in'].to(device)
                 attr_in = data['attr'].to(device)
                 targets = data['out'].to(device)
+                name = data['name']
                 
                 # get initial words for autoregressive inference
                 y_init = targets[:n_eval_init]
@@ -492,19 +495,26 @@ class Controller():
 
                 # Evaluation metrics
                 ...
+                
+                # save output for testing
+                if output_path:
+                    filename = name + '_pred_tokens.pkl'
+                    with open(filename, 'wb') as f:
+                        pickle.dump(y_pred, targets)
         
         # record output info
         output = {}
-        output['loss'] = cum_loss / len(val_loader)
-        output['losses'] = cum_losses / len(val_loader)
+        output['loss'] = cum_loss / len(loader)
+        output['losses'] = cum_losses / len(loader)
         
         return output
 
     
-    
     def test(self, dir_name,
                    filemode='w',
-                   n_tests=1):
+                   n_tests=1,
+                   n_eval_init=1,
+                   save_outputs=True):
         
         # get Saver agent
         head, tail = os.path.split(os.path.normpath(dir_name))
@@ -512,13 +522,40 @@ class Controller():
         
         # load model
         model = saver.load_model()
+
+        # handle device
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        model.to(device)
         
-        # get dataset
-        dataset = data_utils.WordDataset(self.data_base, self.test_ind,
-                                         model.in_types, model.attr_types, model.out_types)
+        # get dataloader
+        loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
+                                                   self.test_ind, model.in_types, 
+                                                   model.attr_types, model.out_types,
+                                                   max_len=n_tests),
+                            batch_size=1, shuffle=False)
 
-        # --- names for filenames
+        # time for logging
+        start_time = time.time()
 
+        # get evaluation metrics
+        metrics = self.evaluate(model,
+                                device=device,
+                                loader=loader,
+                                n_eval_init=n_eval_init,
+                                output_path=saver.exp_dir if save_outputs else None)
+
+        # print validation info
+        runtime = time.time() - start_time
+        out_pos = self.new_positions(model.out_types)
+        print(f"*** Testing Loss: {metrics['loss']:08f} | time: {runtime} ***")
+        print('    > ', ' | '.join(f"{t}: {l:06f}" for t, l in zip(out_pos.values(), 
+                                                                metrics['losses'])))
+                
+        # log validation info
+        saver.add_summary(':oss', metrics['loss'])
+        for t_type, loss in zip(out_pos.values, metrics['losses']):
+            saver.add_summary(f"{t_type} loss", loss)
+        
     
     def new_positions(self, t_types_tup):
         """
