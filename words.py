@@ -12,12 +12,12 @@ params = {
             'bar_tokens': None,
             'eos_tokens': (True, True),
             'type_tokens': True,
-            'in_metric_t_types': [],
-            'in_note_t_types': [],
+            'in_metric_t_types': ['beat', 'tempo_band'],
+            'in_note_t_types': ['pitch', 'start', 'dur_full', 'dur_fract'],
             'attr_metric_t_types': [],
             'attr_note_t_types': [],
-            'out_metric_t_types': [],
-            'out_note_t_types': []
+            'out_metric_t_types': ['local_tempo', 'note_vel_mean'],
+            'out_note_t_types': ['articulation', 'timing', 'note_rel_vel']
         }
     }
 }
