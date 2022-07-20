@@ -153,7 +153,8 @@ def tempo_tokens(beats,
                  hysteresis=[5, 5],
                  allow_zero=False,
                  local_tempo_tokens=True,
-                 median_time=4):
+                 median_time=4,
+                 local_tempo_quant=1):
     """
     Inter-beat intervals (IBIs): length of time in secs between successive beats
     
@@ -216,7 +217,8 @@ def tempo_tokens(beats,
             for i, (time, band) in enumerate(band_out):
                 win_len = min(win_lens[band], i, len(ibi_vals) - i - 1)
                 vals = ibi_vals[i - win_len: i + win_len + 1]
-                local_tempo_out.append((time, 60 / statistics.median(vals)))
+                local_tempo_out.append((time, utils.quantize(60 / statistics.median(vals), 
+                                                     local_tempo_quant)))
     
     return ibi_out, band_out, local_tempo_out
 
@@ -537,7 +539,7 @@ def timing_labels(notes_score,
 
         for idx, note in enumerate(notes_perf):
             # --- articulation --- #
-            
+
             # # predicted end time (using IBIs)
             # dur_pred = 0
             # note_dur_score = dur_score_gp[beat][idx][1]

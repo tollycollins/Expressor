@@ -10,6 +10,8 @@ References:
  file system linked to Controller object:
     Saves
         Words_0
+            Words
+                word objects
             controller_save
             Run_000_[name]
                 saved_models (by condition)

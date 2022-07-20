@@ -19,7 +19,7 @@ import asap_metrics
 def remove_non_aligned(metadata):
     """
     Remove items of metadata without matching score and performance beat annotations
-
+    
     Returns:
         aligned: All items with matching annotations
         non_aligned: All items without metching annotations
@@ -29,6 +29,16 @@ def remove_non_aligned(metadata):
                    if not v['score_and_performance_aligned']}
     return aligned, non_aligned
 
+
+def remove_invalid_beats(metadata):
+    """
+    Remove items of metadata where either performance or score beat annotations 
+        have two different beats annotated at the same time point
+        
+    Returns:
+
+    """
+    ...
 
 
 def compute_tokens(t_types: dict, 
@@ -56,8 +66,8 @@ def compute_tokens(t_types: dict,
         perf_path: path to performance MIDI file
     """
     # load MIDI
-    score = pretty_midi.PrettyMIDI(os.path.join('asap-dataset', score_path))
-    perf = pretty_midi.PrettyMIDI(os.path.join('asap-dataset', perf_path))
+    score = pretty_midi.PrettyMIDI(os.path.join('dataset/asap-dataset', score_path))
+    perf = pretty_midi.PrettyMIDI(os.path.join('dataset/asap-dataset', perf_path))
     
     # mtk_score = miditoolkit.midi.parser.MidiFile(os.path.join('asap-dataset', score_path))
     
@@ -257,7 +267,7 @@ if __name__ == '__main__':
         'beat': {}
         'ibi': {'ibi_tokens': True}
         'tempo_band': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero}
-        'local_tempo': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero, 'median_time': 4}
+        'local_tempo': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero, 'median_time': 4, 'local_tempo_quant': 1}
         'time_sig': {'allowed_time_sigs': None, 'allow_other': True, 'min_freq': 0, 'conti': False}
         'pitch': {}
         'start': {'start_quant': 1/60}
@@ -290,5 +300,6 @@ if __name__ == '__main__':
     default_harmonic_extra_reduce = False
     default_harmonic_conti = True
     
-    create_training_data({}, 'tokens/t1')
+    create_training_data({'local_tempo': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero, 'median_time': 4, 'local_tempo_quant': 1}}, 
+                         'dataset/tokens/t1')
 

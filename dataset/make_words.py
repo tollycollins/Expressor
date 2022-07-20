@@ -48,7 +48,7 @@ def get_word_seq(tokens, cw, t_pos,
         words.append(word)
             
     # words by beat
-    for idx in range(len(tokens['beat'] + 1)):
+    for idx in range(len(tokens['beat']) + 1):
         # --- metric word -- #
         # don't consider anacrusis for beat tokens
         if idx > 0:
@@ -103,6 +103,7 @@ def get_word_seq(tokens, cw, t_pos,
 
 def compute_words(tokens_root, 
                   words_root, 
+                  *,
                   bar_tokens=None,
                   eos_tokens=(True, True),
                   type_tokens=True,
@@ -127,15 +128,16 @@ def compute_words(tokens_root,
     unique_vals = collections.defaultdict(set)
     for entry in os.scandir(tokens_root):
         print(f"Listing unique tokens for {entry} ...                     ", end='\r')
-        with open(entry, 'rb') as f:
-            token_dict = pickle.load(f)
-        for t_type in in_metric_t_types + attr_metric_t_types + out_metric_t_types:
-            for token in token_dict[t_type]:
-                unique_vals[t_type].add(token[1])
-        for t_type in in_note_t_types + attr_note_t_types + out_note_t_types:
-            for tokens in token_dict[t_type].values():
-                for token in tokens:
+        if os.path.isfile(entry):
+            with open(entry, 'rb') as f:
+                token_dict = pickle.load(f)
+            for t_type in in_metric_t_types + attr_metric_t_types + out_metric_t_types:
+                for token in token_dict[t_type]:
                     unique_vals[t_type].add(token[1])
+            for t_type in in_note_t_types + attr_note_t_types + out_note_t_types:
+                for tokens in token_dict[t_type].values():
+                    for token in tokens:
+                        unique_vals[t_type].add(token[1])
     if bar_tokens is not None:
         # give value of '-1' for a bar token (treated as a special beat token)
         unique_vals['beat'].add(-1)
@@ -153,19 +155,14 @@ def compute_words(tokens_root,
     for t_type in t_types:
         print(f"{t_type}: {len(unique_vals[t_type])}")
     
-    # token metadata
-    token_info = {arg: inspect.getargvalues(inspect.currentframe())[3][arg] for arg in 
-                  [inspect.getfullargspec(compute_words)[0][-9:]]}
-    # token_info = {
-    #     'bar_tokens': bar_tokens,
-    #     'eos_tokens': eos_tokens,
-    #     'type_tokens': type_tokens,
-    #     'metric_t_types': metric_t_types,
-    #     'note_t_types': note_t_types
-    # }
+    # token metadata - make record of arguments passed to this function
+    frame = inspect.currentframe()
+    token_info = {n: inspect.getargvalues(frame)[3][n] for n in 
+                  inspect.getfullargspec(compute_words).kwonlyargs}
+    print(f"Token parameters passed: {token_info}")
     
     # blank word templates
-    meta_len = int(any(*eos_tokens, type_tokens))
+    meta_len = int(any([*eos_tokens, type_tokens]))
     in_word_len = meta_len + len(in_metric_t_types) + len(in_note_t_types)
     attr_word_len = meta_len + len(attr_metric_t_types) + len(attr_note_t_types)
     out_word_len = meta_len + len(out_metric_t_types) + len(out_note_t_types)
@@ -181,7 +178,7 @@ def compute_words(tokens_root,
     
     # for saving word lists
     all_in_words = []
-    all_attr_words = []
+    all_attr_words = [] if len(attr_metric_t_types) and len(attr_note_t_types) else None
     all_out_words = []
     
     # for saving word metadata
@@ -190,44 +187,47 @@ def compute_words(tokens_root,
     # --- compile --- #
     # loop through examples to make word vectors of indices
     for entry in os.scandir(tokens_root):
-        with open(entry, 'rb') as f:
-            tokens = pickle.load(f)
-        
-        # words seq for track
-        in_words = get_word_seq(tokens, in_cw, in_pos, 
-                                eos_tokens, bar_tokens, type_tokens, 
-                                in_metric_t_types, in_note_t_types)
-        attr_words = get_word_seq(tokens, attr_cw, attr_pos, 
-                                  eos_tokens, bar_tokens, type_tokens, 
-                                  attr_metric_t_types, attr_note_t_types)
-        out_words = get_word_seq(tokens, out_cw, out_pos, 
-                                 eos_tokens, bar_tokens, type_tokens, 
-                                 out_metric_t_types, out_note_t_types)
-        
-        assert len(in_words) == len(attr_words)
-        assert len(attr_words) == len(out_words)
-        
-        # track name
-        _, tail = os.path.split(entry)
-        name = os.path.splitext(tail)[0]
-        
-        # update metadata
-        # words_info[name] = dict()
-        # w_len = len(in_words)
-        # words_info[name]['num_words'] = w_len
-        words_info['names'].append(name)
-        words_info['lengths'].append(len(in_words))
-        
-        # add to lists
-        all_in_words.append(in_words)
-        all_attr_words.append(attr_words)
-        all_out_words.append(out_words)
-        
-        # save words as tensor
-        # words = torch.stack([torch.as_tensor(w) for w in words])
-        # words = torch.as_tensor(words)
-        # save_name = os.path.join(words_root, name + '.pt')
-        # torch.save(words, save_name)
+        if os.path.isfile(entry):
+            print(f"Creating words for {entry} ...                     ", end='\r')
+            with open(entry, 'rb') as f:
+                tokens = pickle.load(f)
+            
+            # words seq for track
+            in_words = get_word_seq(tokens, in_cw, in_pos, 
+                                    eos_tokens, bar_tokens, type_tokens, 
+                                    in_metric_t_types, in_note_t_types)
+            if all_attr_words:
+                attr_words = get_word_seq(tokens, attr_cw, attr_pos, 
+                                        eos_tokens, bar_tokens, type_tokens, 
+                                        attr_metric_t_types, attr_note_t_types)
+            out_words = get_word_seq(tokens, out_cw, out_pos, 
+                                    eos_tokens, bar_tokens, type_tokens, 
+                                    out_metric_t_types, out_note_t_types)
+            
+            assert len(in_words) == len(out_words)
+            
+            # track name
+            _, tail = os.path.split(entry)
+            name = os.path.splitext(tail)[0]
+            
+            # update metadata
+            # words_info[name] = dict()
+            # w_len = len(in_words)
+            # words_info[name]['num_words'] = w_len
+            words_info['names'].append(name)
+            words_info['lengths'].append(len(in_words))
+            
+            # add to lists
+            all_in_words.append(in_words)
+            if all_attr_words:
+                all_attr_words.append(attr_words)
+            all_out_words.append(out_words)
+            
+            # save words as tensor
+            # words = torch.stack([torch.as_tensor(w) for w in words])
+            # words = torch.as_tensor(words)
+            # save_name = os.path.join(words_root, name + '.pt')
+            # torch.save(words, save_name)
     
     # save metadata
     metadata = {}
@@ -241,10 +241,16 @@ def compute_words(tokens_root,
     with open(meta_name, 'wb') as f:
         pickle.dump((val2idx, idx2val, metadata), f)
     
-    # save data
+
+
+
+    # compress and save data
     words_name = os.path.join(words_root, 'words.pkl')
     with open(words_name, 'wb') as f:
         pickle.dump((all_in_words, all_attr_words, all_out_words), f)
+    
+
+
     
 
 if __name__ == '__main__':
