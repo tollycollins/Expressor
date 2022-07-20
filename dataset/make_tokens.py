@@ -8,11 +8,9 @@ import os
 import pickle
 import itertools
 import utils
-import sys
 import json
 
 import pretty_midi
-import miditoolkit
 
 import token_funcs
 import asap_metrics
@@ -35,9 +33,9 @@ def remove_non_aligned(metadata):
 
 def compute_tokens(t_types: dict, 
                    annot,
-                   corpus_sigs,
                    tokens_path, 
                    score_path, 
+                   corpus_sigs=None,
                    perf_path=None,
                    align_range=0.25):
     """
@@ -166,11 +164,11 @@ def compute_tokens(t_types: dict,
     # harmonic tokens
     harm = [t for t in ['keys', 'harmonic_quality'] if t in t_types]
     if len(harm):
-        if 'time_sig' in t_types:
-            time_sig = t_types['duration']
-        elif time_sig is None:
-            time_sig = token_funcs.time_sig_tokens(beats_score, utils.get_time_sigs(score),
-                                                   corpus_sigs,)
+        # if 'time_sig' in t_types:
+        #     time_sig = t_types['time_sig']
+        # elif time_sig is None:
+        #     time_sig = token_funcs.time_sig_tokens(beats_score, utils.get_time_sigs(score),
+        #                                            corpus_sigs)
         kwargs = dict(list(itertools.chain(*[list(t_types[i].items()) for i in harm])))
         keys, harmonic_quality = token_funcs.harmonic_tokens(score_gp,
                                                              beats_score,
@@ -208,7 +206,9 @@ def create_training_data(t_types, tokens_base, align_range=0.25):
     metadata, _ = remove_non_aligned(metadata)
 
     # get list of all time signatures in corpus
-    corpus_sigs = asap_metrics.time_signature(verbose=False)
+    corpus_sigs = None
+    if 'time_sig' in t_types:
+        corpus_sigs = asap_metrics.time_signature(verbose=False) 
 
     print(f"Updating {list(t_types.keys())} at: {tokens_base}\n")
     
@@ -231,21 +231,64 @@ def create_training_data(t_types, tokens_base, align_range=0.25):
 
         print(f"Processing {idx + 1} out of {len(metadata)}: {name} ...        ", end='\r')
         
-        compute_tokens(t_types, annot, corpus_sigs, tokens_path, score_path, 
+        compute_tokens(t_types, annot, tokens_path, score_path, corpus_sigs=corpus_sigs,
                        perf_path=perf_path, align_range=align_range)
     
     print("\nProcessing complete\n")
     
     path = os.path.join(meta_path, 'tokens_meta.json')
-    with open(path) as f:
-        tokens_meta = json.load(f)
+    try:
+        with open(path) as f:
+            tokens_meta = json.load(f)
+    except FileNotFoundError:
+        tokens_meta = {}
     
     tokens_meta.update(t_types)
+    tokens_meta['align_range'] = align_range
     
     with open(path, 'w') as f:
         json.dump(tokens_meta, f)
 
 
 if __name__ == '__main__':
+    """
+    Available token types and kwargs [copy and paste into dictionary in function below]:
+        'bar': {}
+        'beat': {}
+        'ibi': {'ibi_tokens': True}
+        'tempo_band': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero}
+        'local_tempo': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero, 'median_time': 4}
+        'time_sig': {'allowed_time_sigs': None, 'allow_other': True, 'min_freq': 0, 'conti': False}
+        'pitch': {}
+        'start': {'start_quant': 1/60}
+        'duration': {'duration_quant': default_duration_quant}
+        'dur_full': {'duration_quant': default_duration_quant, 'split_duration': True}
+        'dur_fract': {'duration_quant': default_duration_quant, 'split_duration': True}
+        'local_vel_band': {'mean_len': default_dynamics_mean_len, 'bands': default_dynamics_bands, 'band_win': 1, 'band_hysteresis': (5, 5)}
+        'local_vel_mean': {'mean_len': default_dynamics_mean_len, 'mean_quant': 1}
+        'local_vel_std': {'mean_len': default_dynamics_mean_len, 'std_quant': 1}
+        'note_vel': {}
+        'note_vel_band': {'bands': default_dynamics_bands, 'band_hysteresis': (5, 5)}
+        'note_rel_vel': {'note_std_quant': 0.2, 'note_std_bounds': (-15, 15)}
+        'articulation': {'artic_quant': 0.1, 'artic_lims': None}
+        'timing_dev': {'dev_quant': 0.01, 'dev_lims': None, 'cubic_len': 6, 'beat_in_beat_weight': 1, 'non_beat_in_beat_weight': 2}
+        'keys': {'reduce': default_harmonic_reduce, 'extra_reduce': default_harmonic_extra_reduce, 'conti': default_harmonic_conti}
+        'harmonic_quality': {'reduce': default_harmonic_reduce, 'extra_reduce': default_harmonic_extra_reduce, 'conti': default_harmonic_conti}
+        'rubato': {}
+    """
+    default_tempo_lower_bounds = [5, 45, 85, 120, 150]
+    default_tempo_hysteresis = [5, 5]
+    default_tempo_allow_zero = False
+
+    default_duration_quant = 1/60
+
+    default_dynamics_mean_len = 3
+    default_dynamics_bands = [0, 31, 63, 95, 127]
+    default_dynamics_band_hysteresis = (5, 5)
+    
+    default_harmonic_reduce = False
+    default_harmonic_extra_reduce = False
+    default_harmonic_conti = True
+    
     create_training_data({}, 'tokens/t1')
 

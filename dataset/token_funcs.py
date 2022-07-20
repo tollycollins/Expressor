@@ -26,6 +26,8 @@ Token types:
         note pitch
         note start time (offset from beat as proportion of beat)
         note duration (proportion of beat)
+        note duration (integer part of proportion of beat)
+        note duration (fractional part of proportion of beat)
         
         local dynamics mean (metric token)
         local dynamics standard deviation (metric token) 
@@ -535,6 +537,7 @@ def timing_labels(notes_score,
 
         for idx, note in enumerate(notes_perf):
             # --- articulation --- #
+            
             # # predicted end time (using IBIs)
             # dur_pred = 0
             # note_dur_score = dur_score_gp[beat][idx][1]
