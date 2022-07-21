@@ -25,7 +25,10 @@ params = {
 
 
 if __name__ == '__main__':
-    
+    """
+    args:
+        name: name of folder, matching params dictionary key above
+    """
     # get name from command line
     name = sys.argv[1]
 

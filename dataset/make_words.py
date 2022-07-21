@@ -8,7 +8,7 @@ import collections
 import inspect
 import sys
 
-# import torch
+import compress_pickle
 
 import token_funcs
 
@@ -239,19 +239,21 @@ def compute_words(tokens_root,
     
     meta_name = os.path.join(words_root, 'metadata.pkl')
     with open(meta_name, 'wb') as f:
-        pickle.dump((val2idx, idx2val, metadata), f)
-    
-
-
+        pickle.dump((val2idx, idx2val, metadata), f)  
 
     # compress and save data
-    words_name = os.path.join(words_root, 'words.pkl')
+    print("Compressing and saving data")
+    words_name = os.path.join(words_root, 'words.xz')
     with open(words_name, 'wb') as f:
-        pickle.dump((all_in_words, all_attr_words, all_out_words), f)
+        compress_pickle.dump((all_in_words, all_attr_words, all_out_words), 
+                             f, compression='lzma')
     
-
-
-    
+    # compress and save data
+    # compressed_data = lzma.compress((all_in_words, all_attr_words, all_out_words))
+    # words_name = os.path.join(words_root, 'words.xz')
+    # comp = lzma.LZMAFile(words_name, mode='wb')
+    # comp.write(compressed_data)
+    # comp.close()
 
 if __name__ == '__main__':
     tokens_root = sys.argv[1]
