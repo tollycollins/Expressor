@@ -145,11 +145,11 @@ class Expressor(nn.Module):
             ])
         
         # type residual connection
-        if out_t_types[0] == 'type':
+        if out_t_types[0] == 'meta':
             self.res_concat_type = nn.Linear(dec_dim + dec_emb_dims[0], dec_dim)
         
         # individual outputs
-        self.proj = nn.ModuleList([nn.Linear(dec_dim, v) for i, v in dec_vocab_sizes])
+        self.proj = nn.ModuleList([nn.Linear(dec_dim, v) for v in dec_vocab_sizes])
         
         # initialise weights
         self.apply(weights_init)
@@ -206,7 +206,7 @@ class Expressor(nn.Module):
             out, state = self.dec_block(dec_emb, zs, state)
         
         # type residual (optional)
-        if self.out_t_types[0] == 'type':
+        if self.out_t_types[0] == 'meta':
             if self.is_training:
                 # get type prediction before residual connection
                 y_type = self.proj[0](out)

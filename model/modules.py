@@ -25,7 +25,7 @@ class Embedding(nn.Module):
         return self.emb(x) * math.sqrt(self.dim_emb)
 
 
-class PositionalEncoding(nn.module):
+class PositionalEncoding(nn.Module):
     def __init__(self, dim_model, dropout=0.1, max_len=20000):
         super().__init__()
         
@@ -45,7 +45,7 @@ class PositionalEncoding(nn.module):
         return x
 
 
-class EncoderBlock(nn.module):
+class EncoderBlock(nn.Module):
     def __init__(self, layers, norm_layer=None):
         """
         args:
@@ -76,7 +76,7 @@ class EncoderBlock(nn.module):
         return x, skips
     
 
-class DecoderBlock(nn.module):
+class DecoderBlock(nn.Module):
     def __init__(self, layers):
         super().__init__()
         self.layers = nn.ModuleList(layers)
@@ -105,7 +105,7 @@ class DecoderBlock(nn.module):
         return y
         
         
-class RecurrentDecoderBlock(nn.module):
+class RecurrentDecoderBlock(nn.Module):
     def __init__(self, layers):
         super().__init__()
         self.layers = nn.ModuleList(layers)

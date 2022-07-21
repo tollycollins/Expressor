@@ -235,7 +235,8 @@ class Controller():
 
     
     def class_save(self):
-        with open(self.path, 'wb') as f:
+        save_name = os.path.join(self.path, 'controller.pkl')
+        with open(save_name, 'wb') as f:
             pickle.dump(self, f)
         print(f"Trainer object saved at {self.path}")
 
@@ -263,16 +264,23 @@ class Controller():
                     swa_init=0.001,
                     n_eval_init=1,
                     save_cond='loss',
-                    early_stop=50):
+                    early_stop=50,
+                    max_train_size=None,
+                    max_eval_size=None,
+                    print_model=False):
         
         # get Dataloaders
+        print("Obtaining training data ...")        
         train_loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
                                                          self.train_ind,
-                                                         in_types, attr_types, out_types), 
+                                                         in_types, attr_types, out_types,
+                                                         max_len=max_train_size), 
                                   batch_size=batch_size, pin_memory=True, shuffle=True)
+        print("Obtaining validation data ...")
         val_loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
                                                        self.val_ind,
-                                                       in_types, attr_types, out_types),
+                                                       in_types, attr_types, out_types,
+                                                       max_len=max_eval_size),
                                 batch_size=batch_size, pin_memory=True, shuffle=True)
         
         # get positions of tokens in words
@@ -284,11 +292,14 @@ class Controller():
         out_vocab_sizes = [len(self.idx2val[t]) for t in out_pos.values()]
     
         # initialise model
+        print("Initialising model ...")
         model = Expressor(in_types, attr_types, out_types,
                           in_vocab_sizes, attr_vocab_sizes, out_vocab_sizes,
                           *model_args, 
                           is_training=True, 
                           **model_kwargs)
+        if print_model:
+            print(model)
         
         # pair model with a recurrent version for evaluation
         eval_model = Expressor(in_types, attr_types, out_types,

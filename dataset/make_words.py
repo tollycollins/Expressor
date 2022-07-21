@@ -71,7 +71,7 @@ def get_word_seq(tokens, cw, t_pos,
                     
             # metric tokens
             for t_type in metric_t_types:
-                word[t_pos[t_type]] = tokens[t_type][idx - 1]
+                word[t_pos[t_type]] = tokens[t_type][idx - 1][1]
                     
             # add word
             words.append(word)
@@ -87,7 +87,7 @@ def get_word_seq(tokens, cw, t_pos,
                     
             # note nokens
             for t_type in note_t_types:
-                word[t_pos[t_type]] = tokens[t_type][idx][note]
+                word[t_pos[t_type]] = tokens[t_type][idx][note][1]
                     
             # add word
             words.append(word)
