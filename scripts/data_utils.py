@@ -69,6 +69,7 @@ class WordDataset(Dataset):
         self.in_data = [[[word[i] for i in in_pos] for word in track] for \
                         idx, track in enumerate(data[0]) if idx in t_idxs]
         
+        self.attr_data = None
         if len(attr_types):
             attr_pos = sorted([meta['attr_pos'][t] for t in attr_types])
             if 'meta' in meta['attr_pos']:
@@ -96,10 +97,12 @@ class WordDataset(Dataset):
     def __getitem__(self, index):
         data = {
             'in': torch.as_tensor(self.in_data[index]),
-            'attr': torch.as_tensor(self.attr_data[index]) if self.attr_data[index] else None,
             'out': torch.as_tensor(self.out_data[index]),
             'name': self.names[index]
         }
+
+        if self.attr_data is not None:
+            data['attr'] = torch.as_tensor(self.attr_data[index])
         
         # optional augmentation
         

@@ -68,10 +68,10 @@ class SaverAgent():
         Opens a file for writing only. Overwrites the file if the file exists.
         If the file does not exist, creates a new file for writing.
     """
-    def init(self, save_root,
-                   save_name=None, 
-                   exp_dir=None,
-                   filemode='w'):
+    def __init__(self, save_root,
+                       save_name=None, 
+                       exp_dir=None,
+                       filemode='w'):
         
         self.init_time = time.time()
         self.global_step = 0
@@ -79,9 +79,10 @@ class SaverAgent():
         if save_name[0:4] != 'run_':
             # directory name
             name = 'run_000'
-            names = sorted(filter(lambda x: os.path.isdir(os.path.join(save_root, x)), 
-                                    os.listdir(save_root)))
-            if names:
+            names = sorted(filter(lambda x: (os.path.isdir(os.path.join(save_root, x)) 
+                                             and x not in ['words']), 
+                                             os.listdir(save_root)))
+            if len(names):
                 name = f"run_{int(names[-1][4:7]) + 1:03}"
             if save_name:
                 name += f"_{save_name}"
@@ -182,9 +183,8 @@ class SaverAgent():
     def save_params(self, **kwargs):
         # make directory
         save_path = os.path.join(self.save_dir, 'training_params.json')
-        os.makedirs(save_path, exist_ok=True)
-        with open(save_path) as f:
-            json.dump(kwargs)
+        with open(save_path, 'w', encoding='utf-8') as f:
+            json.dump(kwargs, f, indent=4, sort_keys=True, ensure_ascii=False)
     
     def load_params(self):
         with open(os.path.join(self.save_dir, 'training_params.json')) as f:
@@ -302,6 +302,7 @@ class Controller():
             print(model)
         
         # pair model with a recurrent version for evaluation
+        model_kwargs['init_verbose'] = False
         eval_model = Expressor(in_types, attr_types, out_types,
                                in_vocab_sizes, attr_vocab_sizes, out_vocab_sizes,
                                *model_args, 
@@ -328,7 +329,8 @@ class Controller():
         # add restart element to lr decay (optional)
         if restart_anneal:
             schedulers.append(CosineAnnealingWarmRestarts(
-                optimizer, sch_warm * epochs, sch_Tmult, eta_min=math.sqrt(eta_min)
+                optimizer, max(1, int(sch_warm * epochs)), sch_Tmult, 
+                eta_min=math.sqrt(eta_min)
             ))
         # add warm-up to lr (optional)
         if sch_warm:
@@ -381,7 +383,7 @@ class Controller():
                 
                 # unpack data
                 enc_in = data['in'].to(device)
-                attr_in = data['attr'].to(device)
+                attr_in = data['attr'].to(device) if 'attr' in data else None
                 targets = data['out'].to(device)
                 
                 # forward pass

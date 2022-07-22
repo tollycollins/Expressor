@@ -20,24 +20,28 @@ def bias_init(bias):
 def weights_init(m, verbose=False):
     classname = m.__class__.__name__
 
-    if verbose:
-        print (f'[{classname}] initializing ...')
-
     if classname.find('Linear') != -1:
         if hasattr(m, 'weight') and m.weight is not None:
             weight_init_normal(m.weight, 0.01)
         if hasattr(m, 'bias') and m.bias is not None:
             bias_init(m.bias)
+        if verbose:
+            print (f'[{classname}] initialized')
     elif classname.find('Embedding') != -1:
         if hasattr(m, 'weight'):
             weight_init_normal(m.weight, 0.01)
+        if verbose:
+            print (f'[{classname}] initialized')
     elif classname.find('LayerNorm') != -1:
         if hasattr(m, 'weight'):
             nn.init.normal_(m.weight, 1.0, 0.01)
         if hasattr(m, 'bias') and m.bias is not None:
             bias_init(m.bias)
+        if verbose:
+            print (f'[{classname}] initialized')
     else:
-      print (f'[{classname}] not initialized !!')
+        if verbose:
+            print (f'[{classname}] not initialized !!')
 
 
 def network_params(model):

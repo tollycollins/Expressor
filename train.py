@@ -55,16 +55,7 @@ params = {
                 "attr_types": [],
                 "out_types": ['local_tempo', 'local_vel_mean', 'articulation', 'timing_dev', 'note_rel_vel'],
                 "model_args": [
-                        [10, 10, 10, 10, 10, 10, 10],
-                        64,
-                        3,
-                        2,
-                        128,
-                        [10, 10, 10, 30, 30],
-                        64, 
-                        3, 
-                        2,
-                        128,
+                        [10, 10, 10, 10, 10, 10, 10], 64, 3, 2, 128, [10, 10, 10, 30, 30], 64, 3, 2, 128
                     ],
                 "model_kwargs": {
                         "attr_emb_dims": [],
@@ -75,7 +66,8 @@ params = {
                         "dec_dropout": 0.1,
                         "dec_act": 'relu',
                         "skips": True,
-                        "hidden": True
+                        "hidden": True,
+                        "init_verbose": False
                     },
                 "param_path": None,
                 "init_lr": 3e-3,

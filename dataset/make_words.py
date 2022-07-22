@@ -211,9 +211,6 @@ def compute_words(tokens_root,
             name = os.path.splitext(tail)[0]
             
             # update metadata
-            # words_info[name] = dict()
-            # w_len = len(in_words)
-            # words_info[name]['num_words'] = w_len
             words_info['names'].append(name)
             words_info['lengths'].append(len(in_words))
             
@@ -222,12 +219,6 @@ def compute_words(tokens_root,
             if all_attr_words:
                 all_attr_words.append(attr_words)
             all_out_words.append(out_words)
-            
-            # save words as tensor
-            # words = torch.stack([torch.as_tensor(w) for w in words])
-            # words = torch.as_tensor(words)
-            # save_name = os.path.join(words_root, name + '.pt')
-            # torch.save(words, save_name)
     
     # save metadata
     metadata = {}

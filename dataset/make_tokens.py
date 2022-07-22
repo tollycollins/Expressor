@@ -256,8 +256,8 @@ def create_training_data(t_types, tokens_base, align_range=0.25):
     tokens_meta.update(t_types)
     tokens_meta['align_range'] = align_range
     
-    with open(path, 'w') as f:
-        json.dump(tokens_meta, f)
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(tokens_meta, f, ensure_ascii=False)
 
 
 if __name__ == '__main__':

@@ -41,6 +41,7 @@ class Expressor(nn.Module):
                  dec_dropout=0.1, dec_act='relu',
                  skips=True,
                  hidden=True,
+                 init_verbose=False,
                  is_training=True):
         super().__init__()
 
@@ -152,7 +153,7 @@ class Expressor(nn.Module):
         self.proj = nn.ModuleList([nn.Linear(dec_dim, v) for v in dec_vocab_sizes])
         
         # initialise weights
-        self.apply(weights_init)
+        self.apply(lambda module: weights_init(module, verbose=init_verbose))
 
     def forward(self, x, y, attr=None, state=None, y_type=None):
         """
