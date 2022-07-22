@@ -8,6 +8,7 @@ import utils
 import token_funcs
 import asap_metrics
 import os
+import sys
 import itertools
 
 import pretty_midi as pm
@@ -292,6 +293,7 @@ class Token_funcs(unittest.TestCase):
                     self.assertAlmostEqual(time, exp_dev[i][idx][0], 2, f"beat {i}, num {idx}")
                     self.assertAlmostEqual(dev[i][idx][1], exp_dev[i][idx][1], 2, 
                                            f"beat {i}, num {idx}") 
+          
     
     def test_harmonic_tokens(self):
         path = os.path.join("dataset/asap-dataset/", Token_funcs.test_path)
@@ -312,7 +314,40 @@ class Token_funcs(unittest.TestCase):
         pass
 
 
+def print_timing_labels(track_num):
+    metadata = utils.get_metadata()
+    path = list(metadata.keys())[1]
+    midi_perf_path = os.path.join('dataset/asap-dataset', path)
+    midi_score_path = os.path.join(os.path.split(midi_perf_path)[0], 'midi_score.mid')
+    perf = pm.PrettyMIDI(midi_perf_path)
+    score = pm.PrettyMIDI(midi_score_path)
+    score_notes = list(itertools.chain(*[i.notes for i in score.instruments]))
+    perf_notes = list(itertools.chain(*[i.notes for i in perf.instruments]))
+    beats_perf = metadata[path]['performance_beats']
+    beats_score = metadata[path]['midi_score_beats']
+    score_notes, perf_notes, _, _ = utils.align_notes(score_notes,
+                                                    perf_notes,
+                                                    beats_score,
+                                                    beats_perf,
+                                                    search_range=0.25)
+    articulation, timing_dev = token_funcs.timing_labels(score_notes,
+                                                        perf_notes,
+                                                        None,
+                                                        beats_score,
+                                                        beats_perf)
+    print("Articulation: ")
+    for i, vals in articulation.items():
+        print(f"Beat {i}: {[t[1] for t in vals]}")
+    print("Timing: ")
+    for i, vals in timing_dev.items():
+        print(f"Beat {i}: {[t[1] for t in vals]}")   
+
 
 if __name__ == "__main__":
-    unittest.main()
+
+    if len(sys.argv) == 1:
+        unittest.main()
+
+    elif sys.argv[1] == 'print_timing_labels':
+        print_timing_labels(int(sys.argv[2]))
 

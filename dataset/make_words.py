@@ -32,7 +32,7 @@ def word_pos(meta_len, metric_t_types, note_t_types):
     return t_pos
 
 
-def get_word_seq(tokens, cw, t_pos, 
+def get_word_seq(tokens, cw, t_pos, val2idx,
                  eos_tokens, bar_tokens, type_tokens, 
                  metric_t_types, note_t_types):
     """
@@ -51,19 +51,18 @@ def get_word_seq(tokens, cw, t_pos,
     for idx in range(len(tokens['beat']) + 1):
         # --- metric word -- #
         # don't consider anacrusis for beat tokens
-        if idx > 0:
-            word = cw.copy()
-                    
+        if idx > 0:  
             # bar token
             if bar_tokens is not None and tokens['bar'][idx - 1][1] == 1:
+                bar_word = cw.copy()
                 if type_tokens:
-                    word[0] = token_funcs.type_token_val('metric')
+                    bar_word[0] = token_funcs.type_token_val('metric')
                 # special beat value for bars
-                word[t_pos['beat']] = -1
+                bar_word[t_pos['beat']] = val2idx['beat'][-1]
                 # add word to list
-                words.append(word)
-                # reset word
-                word = cw.copy()
+                words.append(bar_word)
+
+            word = cw.copy()
                     
             # type metatoken
             if type_tokens:
@@ -71,7 +70,8 @@ def get_word_seq(tokens, cw, t_pos,
                     
             # metric tokens
             for t_type in metric_t_types:
-                word[t_pos[t_type]] = tokens[t_type][idx - 1][1]
+                token = tokens[t_type][idx - 1][1]
+                word[t_pos[t_type]] = val2idx[t_type][token]
                     
             # add word
             words.append(word)
@@ -87,7 +87,8 @@ def get_word_seq(tokens, cw, t_pos,
                     
             # note nokens
             for t_type in note_t_types:
-                word[t_pos[t_type]] = tokens[t_type][idx][note][1]
+                token = tokens[t_type][idx][note][1]
+                word[t_pos[t_type]] = val2idx[t_type][token]
                     
             # add word
             words.append(word)
@@ -147,8 +148,8 @@ def compute_words(tokens_root,
     idx2val = dict()
     for t_type in t_types:
         vals = sorted(unique_vals[t_type])
-        val2idx[t_type] = {val: idx for idx, val in enumerate(vals)}
-        idx2val[t_type] = {idx: val for idx, val in enumerate(vals)}
+        val2idx[t_type] = {val: idx for idx, val in enumerate(vals, 1)}
+        idx2val[t_type] = {idx: val for idx, val in enumerate(vals, 1)}
     
     # print
     print("\nVocab sizes: \n")
@@ -193,14 +194,14 @@ def compute_words(tokens_root,
                 tokens = pickle.load(f)
             
             # words seq for track
-            in_words = get_word_seq(tokens, in_cw, in_pos, 
+            in_words = get_word_seq(tokens, in_cw, in_pos, val2idx,
                                     eos_tokens, bar_tokens, type_tokens, 
                                     in_metric_t_types, in_note_t_types)
             if all_attr_words:
-                attr_words = get_word_seq(tokens, attr_cw, attr_pos, 
+                attr_words = get_word_seq(tokens, attr_cw, attr_pos, val2idx,
                                         eos_tokens, bar_tokens, type_tokens, 
                                         attr_metric_t_types, attr_note_t_types)
-            out_words = get_word_seq(tokens, out_cw, out_pos, 
+            out_words = get_word_seq(tokens, out_cw, out_pos, val2idx,
                                     eos_tokens, bar_tokens, type_tokens, 
                                     out_metric_t_types, out_note_t_types)
             
@@ -219,6 +220,7 @@ def compute_words(tokens_root,
             if all_attr_words:
                 all_attr_words.append(attr_words)
             all_out_words.append(out_words)
+    print("")
     
     # save metadata
     metadata = {}
@@ -238,13 +240,7 @@ def compute_words(tokens_root,
     with open(words_name, 'wb') as f:
         compress_pickle.dump((all_in_words, all_attr_words, all_out_words), 
                              f, compression='lzma')
-    
-    # compress and save data
-    # compressed_data = lzma.compress((all_in_words, all_attr_words, all_out_words))
-    # words_name = os.path.join(words_root, 'words.xz')
-    # comp = lzma.LZMAFile(words_name, mode='wb')
-    # comp.write(compressed_data)
-    # comp.close()
+
 
 if __name__ == '__main__':
     tokens_root = sys.argv[1]

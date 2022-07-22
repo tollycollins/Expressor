@@ -339,12 +339,12 @@ def align_notes(notes_score, notes_perf, beats_score, beats_perf,
             # notes = [*gps_perf[search_idx]]
 
             # find expected time value in performed score
-            # ratio = (note.start - beats_score[beat]) / ibis_score[beat] if \
-            #         ibis_score[beat] not in [0, np.inf] else 0
-            # exp_time = beats_perf[beat] + ratio * ibis_perf[beat] if \
-            #            ibis_perf[beat] not in [0, np.inf] else beats_perf[beat]
-            ratio = (note.start - beats_score[beat]) / ibis_score[beat]
-            exp_time = beats_perf[beat] + ratio * ibis_perf[beat]
+            ratio = (note.start - beats_score[beat]) / ibis_score[beat] if \
+                    ibis_score[beat] not in [0, np.inf] else 0
+            exp_time = beats_perf[beat] + ratio * ibis_perf[beat] if \
+                       ibis_perf[beat] not in [0, np.inf] else beats_perf[beat]
+            # ratio = (note.start - beats_score[beat]) / ibis_score[beat]
+            # exp_time = beats_perf[beat] + ratio * ibis_perf[beat]
 
 
             # find min and max allowable time values

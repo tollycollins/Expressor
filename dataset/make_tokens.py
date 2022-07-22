@@ -30,15 +30,27 @@ def remove_non_aligned(metadata):
     return aligned, non_aligned
 
 
-def remove_invalid_beats(metadata):
+def remove_invalid_beats(metadata, eps=1e-3):
     """
     Remove items of metadata where either performance or score beat annotations 
-        have two different beats annotated at the same time point
+        have two different beats annotated at the same time point, or where the
+        IBI < eps
         
     Returns:
-
+        valid, invalid
     """
-    ...
+    valid = dict()
+    invalid = dict()
+    for k, v in metadata.items():
+        valid[k] = v
+        ibis = utils.ibis(v['performance_beats'])
+        ibis.extend(utils.ibis(v['midi_score_beats']))
+        for ibi in ibis:
+            if ibi < eps:
+                invalid.update(valid.popitem())
+                break
+
+    return valid, invalid
 
 
 def compute_tokens(t_types: dict, 
@@ -202,7 +214,7 @@ def compute_tokens(t_types: dict,
         pickle.dump(tokens, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def create_training_data(t_types, tokens_base, align_range=0.25):
+def create_training_data(t_types, tokens_base, align_range=0.25, beat_eps=1e-2):
     """
     Save data and corresponding metadata file
     """
@@ -213,8 +225,13 @@ def create_training_data(t_types, tokens_base, align_range=0.25):
     metadata = utils.get_metadata()
     
     # only keep items in both score and performance
-    metadata, _ = remove_non_aligned(metadata)
+    metadata, invalid = remove_non_aligned(metadata)
+    print(f"{len(invalid)} non-aligned performances removed from dataset")
 
+    # only keep items with valid beat annotations
+    metadata, invalid = remove_invalid_beats(metadata, beat_eps)
+    print(f"{len(invalid)} tracks with invalid beat annotations removed from dataset")
+    
     # get list of all time signatures in corpus
     corpus_sigs = None
     if 'time_sig' in t_types:
@@ -300,6 +317,6 @@ if __name__ == '__main__':
     default_harmonic_extra_reduce = False
     default_harmonic_conti = True
     
-    create_training_data({'local_tempo': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero, 'median_time': 4, 'local_tempo_quant': 1}}, 
-                         'dataset/tokens/t1')
+    create_training_data({'timing_dev': {'dev_quant': 0.01, 'dev_lims': None, 'cubic_len': 6, 'beat_in_beat_weight': 1, 'non_beat_in_beat_weight': 2}}, 
+                         'dataset/tokens/t1', align_range=0.25, beat_eps=1e-2)
 

@@ -482,7 +482,8 @@ def timing_labels(notes_score,
                   dev_lims=None,
                   cubic_len=6,
                   beat_in_beat_weight=1,
-                  non_beat_in_beat_weight=2):
+                  non_beat_in_beat_weight=2,
+                  calc_type='linear'):
     """
     args:
         notes_score: notes from score, aligned by list position with notes_perf
@@ -495,12 +496,15 @@ def timing_labels(notes_score,
         dev_quant: resolution (proportion of a beat) for timing deviation labels
         dev_lims: (lower, upper) bounds for timing deviation value
         cubic_len: number of beats considered for cubic spline interpolation function
-        beat_in_beat_weight: how much to weight to give in_beat extrapolation values, 
+        beat_in_beat_weight: how much weight to give in_beat extrapolation values, 
                              as opposed to beat-to-beat extrapolation for notes 
                              corresponding with score beats
-        non_beat_in_beat_weight: how much to weight to give in_beat extrapolation values, 
+        non_beat_in_beat_weight: how much weight to give in_beat extrapolation values, 
                                  as opposed to beat-to-beat extrapolation for notes not
                                  corresponding with score beats
+        calc_type:
+            'linear': all values given relative to IBIs
+            'dynamic': use interpolation and extrapolation to approximate real deviations
     return:
         note_articulation_labels: tokens for note articulation deviation from expected
                                   (unit: proportion of a beat)
@@ -530,118 +534,105 @@ def timing_labels(notes_score,
                                        in_beat_weight=beat_in_beat_weight)
     
     # get cubic spline interpolation function for instantaneous timing
-    beat_interp = interp1d(beats_score_ext, beats_perf_ext, kind='cubic',
+    # beat_interp = interp1d(beats_score_ext, beats_perf_ext, kind='cubic',
+    #                        fill_value='extrapolate', assume_sorted=True)
+    beat_interp = interp1d(beats_score, beats_perf, kind='cubic',
                            fill_value='extrapolate', assume_sorted=True)
     
     artic_out = collections.defaultdict(list)
     dev_out = collections.defaultdict(list)
-    for beat, notes_perf in enumerate(notes_perf_gp):
-
-        for idx, note in enumerate(notes_perf):
-            # --- articulation --- #
-
-            # # predicted end time (using IBIs)
-            # dur_pred = 0
-            # note_dur_score = dur_score_gp[beat][idx][1]
-            # beat_count = 0
+    
+    if calc_type == 'dynamic':
+        for beat, notes_perf in enumerate(notes_perf_gp):
             
-            # # need to add first fractional part
-            
-            # # note: could just use interpolation function for predicted end point
-            # # or both interpolations!!
-            
-            # # whole beats
-            # while note_dur_score >= 1:
-            #     dur_pred += ibis_perf[beat + beat_count]
-            #     beat_count += 1
-            #     note_dur_score -= 1
-            
-            # # end fractional part
-            # dur_pred += ibis_perf[beat + beat_count] * note_dur_score
-
-            # predicted end time via interpolation
-            end_pred = beat_interp(notes_score_gp[beat][idx].end)
-            dur_pred = end_pred - note.start
-            
-            # Note: could use:
-            # predicted end time via score duration (proportion of performance IBIs)
-            # OR: predicted end time relative to other notes
-            
-            # actual duration
-            dur_perf = note.end - note.start
-            
-            if dur_pred:
-                # articulation difference as proportion of expected
-                artic = (dur_perf - dur_pred) / dur_pred
-                if artic_lims is not None:
-                    artic = artic_lims[0] if artic < artic_lims[0] else artic
-                    artic = artic_lims[1] if artic > artic_lims[1] else artic
-            else: 
-                artic = 0
-            
-            # get equivalent score time for reference
-            time = notes_score_gp[beat][idx].start
-            
-            # add to output
-            artic_out[beat].append((time, utils.quantize(artic, artic_quant)))
-
-            # --- timing deviation --- #
-            pred = 0
-            # notes whose score position corresponds with a beat
-            if beat > 1 and (round(Decimal(notes_score_gp[beat][idx].start), 2) == 
-                             round(Decimal(beats_score_ext[beat]), 2)):
-                pred = exp_beats[beat - 1]
-            
-            # in-beat notes
-            else:
-                # deviation relative to beat level curve
-                # score_note = notes_score_gp[beat][idx]
-                # score_time = (score_note.start - beats_score_ext[beat]) / \
-                #     (beats_score_ext[beat + 1] - beats_score_ext[beat])
-                # pred_time = beat_interp(score_time)
-
-                pred_time = beat_interp(notes_score_gp[beat][idx].start)
+            for idx, note in enumerate(notes_perf):
+                # --- articulation --- #
                 
-                # deviation relative to in-beat curve
-                in_beat_time = 0
-                if idx in [0, 1]:
-                    in_beat_time = pred_time
+                # predicted end time via interpolation
+                end_pred = beat_interp(notes_score_gp[beat][idx].end)
+                dur_pred = end_pred - note.start
                 
+                # actual duration
+                dur_perf = note.end - note.start
+                
+                if dur_pred:
+                    # articulation difference as proportion of expected
+                    artic = (dur_perf - dur_pred) / dur_pred
+                    if artic_lims is not None:
+                        artic = artic_lims[0] if artic < artic_lims[0] else artic
+                        artic = artic_lims[1] if artic > artic_lims[1] else artic
+                else: 
+                    artic = 0
+                
+                # get equivalent score time for reference
+                time = notes_score_gp[beat][idx].start
+                
+                # add to output
+                artic_out[beat].append((time, utils.quantize(artic, artic_quant)))
+
+                # --- timing deviation --- #
+                pred = 0
+                # notes whose score position corresponds with a beat
+                if beat > 1 and (round(Decimal(notes_score_gp[beat][idx].start), 2) == 
+                                round(Decimal(beats_score_ext[beat]), 2)):
+                    pred = exp_beats[beat - 1]
+                
+                # in-beat notes
                 else:
-                    # get distinct note times
-                    times_score, times_perf = utils.distinct_times(notes_score_gp[beat][:idx], 
-                                                                notes_perf[:idx])
-                        
-                    # add beat time if it is missing
-                    if times_score == [] or (round(Decimal(times_score[0]), 2) != 
-                                            round(Decimal(beats_score_ext[beat]), 2)):
-                        times_score = [beats_score_ext[beat]] + times_score
-                        times_perf = [beats_perf_ext[beat]] + times_perf
+                    pred_time = beat_interp(notes_score_gp[beat][idx].start)
                     
-                    # remove last time if it corresponds with extrapolation time
-                    if times_score[-1] == notes_score_gp[beat][idx]:
-                        times_score.pop()
-                        times_perf.pop()
-                    
-                    if len(times_score) < 2:
+                    # deviation relative to in-beat curve
+                    in_beat_time = 0
+                    if idx in [0, 1]:
                         in_beat_time = pred_time
                     
-                    else: 
-                        f = utils.extrapolation_func(times_score, times_perf)
-                        in_beat_time = f(notes_score_gp[beat][idx].start)
-                
-                # weighted average of predicted times
-                pred = (pred_time + in_beat_time * non_beat_in_beat_weight) / \
-                       (1 + non_beat_in_beat_weight)
-                
-            # get deviation token
-            dev = (note.start - pred) / ibis_perf[beat]
-            if dev_lims is not None:
-                dev = dev_lims[0] if dev < dev_lims[0] else dev
-                dev = dev_lims[1] if dev > dev_lims[1] else dev
-            dev_out[beat].append((time, utils.quantize(dev, dev_quant)))
+                    else:
+                        # get distinct note times
+                        times_score, times_perf = utils.distinct_times(notes_score_gp[beat][:idx], 
+                                                                    notes_perf[:idx])
+                            
+                        # add beat time if it is missing
+                        if times_score == [] or (round(Decimal(times_score[0]), 2) != 
+                                                round(Decimal(beats_score_ext[beat]), 2)):
+                            times_score = [beats_score_ext[beat]] + times_score
+                            times_perf = [beats_perf_ext[beat]] + times_perf
+                        
+                        # remove last time if it corresponds with extrapolation time
+                        if times_score[-1] == notes_score_gp[beat][idx]:
+                            times_score.pop()
+                            times_perf.pop()
+                        
+                        if len(times_score) < 2:
+                            in_beat_time = pred_time
+                        
+                        else: 
+                            f = utils.extrapolation_func(times_score, times_perf)
+                            in_beat_time = f(notes_score_gp[beat][idx].start)
+                    
+                    # weighted average of predicted times
+                    pred = (pred_time + in_beat_time * non_beat_in_beat_weight) / \
+                        (1 + non_beat_in_beat_weight)
+                    
+                # get deviation token
+                dev = (note.start - pred) / ibis_perf[beat]
+                if dev_lims is not None:
+                    dev = dev_lims[0] if dev < dev_lims[0] else dev
+                    dev = dev_lims[1] if dev > dev_lims[1] else dev
+                dev_out[beat].append((time, utils.quantize(dev, dev_quant)))
+    
+    artic_whole_out = collections.defaultdict(list)
+    artic_fract_out = collections.defaultdict(list)
+    dev_whole_out = collections.defaultdict(list)
+    dev_fract_out = collections.defaultdict(list)
+    
+    if calc_type == 'linear':
+        for beat, notes_perf in enumerate(notes_perf_gp):
+            ...
 
-    return artic_out, dev_out
+
+
+    return artic_out, artic_whole_out, artic_fract_out, \
+        dev_out, dev_whole_out, dev_fract_out
 
 
 # def harmonic_tokens(mtk_score, time_sig_tokens, beats_score, 
