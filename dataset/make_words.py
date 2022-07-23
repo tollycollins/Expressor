@@ -20,7 +20,7 @@ def word_pos(meta_len, metric_t_types, note_t_types):
     ptr = 0
     t_pos = {}
     if meta_len:
-        t_pos['meta'] = 0
+        t_pos['type'] = 0
         ptr += 1
     for t_type in metric_t_types:
         t_pos[t_type] = ptr
@@ -44,7 +44,7 @@ def get_word_seq(tokens, cw, t_pos, val2idx,
     # beginning of sequence token
     if eos_tokens[0]:
         word = cw.copy()
-        word[0] = token_funcs.type_token_val('eos')
+        word[0] = val2idx['type'][token_funcs.type_token_val('eos')]
         words.append(word)
             
     # words by beat
@@ -66,7 +66,7 @@ def get_word_seq(tokens, cw, t_pos, val2idx,
                     
             # type metatoken
             if type_tokens:
-                word[0] = token_funcs.type_token_val('metric')
+                word[0] = val2idx['type'][token_funcs.type_token_val('metric')]
                     
             # metric tokens
             for t_type in metric_t_types:
@@ -83,7 +83,7 @@ def get_word_seq(tokens, cw, t_pos, val2idx,
                     
             # type metatoken
             if type_tokens:
-                word[0] = token_funcs.type_token_val('note')
+                word[0] = val2idx['type'][token_funcs.type_token_val('note')]
                     
             # note nokens
             for t_type in note_t_types:
@@ -96,7 +96,7 @@ def get_word_seq(tokens, cw, t_pos, val2idx,
     # eos token
     if eos_tokens[1]:
         word = cw.copy()
-        word[0] = token_funcs.type_token_val('eos')
+        word[0] = val2idx['type'][token_funcs.type_token_val('eos')]
         words.append(word)
     
     return words
@@ -143,6 +143,9 @@ def compute_words(tokens_root,
     if bar_tokens is not None:
         # give value of '-1' for a bar token (treated as a special beat token)
         unique_vals['beat'].add(-1)
+    if type_tokens:
+        unique_vals['type'] = set(v for v in (token_funcs.get_type_options()).values())
+        t_types.append('type')
     
     # dictionaries for converting between values and token indices
     val2idx = dict()

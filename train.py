@@ -51,11 +51,14 @@ params = {
                 "log_mode": 'w',
                 "grad_acc_freq": None,
                 "val_freq": 1,
-                "in_types": ['beat', 'tempo_band', 'pitch', 'start', 'dur_full', 'dur_fract'],
+                "in_types": ['type', 'beat', 'tempo_band', 'pitch', 'start', 'dur_full', 
+                             'dur_fract'],
                 "attr_types": [],
-                "out_types": ['local_tempo', 'local_vel_mean', 'articulation', 'timing_dev', 'note_rel_vel'],
+                "out_types": ['type', 'ibi', 'local_vel_mean', 'artic_whole', 'artic_fract', 
+                              'timing_dev_whole', 'timing_dev_fract', 'note_vel_diff'],
                 "model_args": [
-                        [10, 10, 10, 10, 10, 10, 10], 64, 3, 2, 128, [10, 10, 10, 30, 30], 64, 3, 2, 128
+                        [10, 10, 10, 10, 10, 10, 10], 64, 3, 2, 128, 
+                        [10, 30, 10, 10, 10, 10, 10, 10], 64, 3, 2, 128
                     ],
                 "model_kwargs": {
                         "attr_emb_dims": [],

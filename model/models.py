@@ -16,7 +16,7 @@ import torch.nn as nn
 
 from fast_transformers.transformers import TransformerEncoderLayer, TransformerDecoderLayer
 from fast_transformers.recurrent.transformers import RecurrentTransformerDecoderLayer
-from fast_transformers.attention import AttentionLayer, LinearAttention
+from fast_transformers.attention import AttentionLayer, LinearAttention, CausalLinearAttention
 
 from modules import (
     Embedding, PositionalEncoding, EncoderBlock, DecoderBlock, RecurrentDecoderBlock
@@ -120,7 +120,7 @@ class Expressor(nn.Module):
             # parallel version with teacher forcing for training
             self.dec_block = DecoderBlock([
                 TransformerDecoderLayer(
-                    AttentionLayer(LinearAttention(dec_dim), dec_dim, dec_heads), 
+                    AttentionLayer(CausalLinearAttention(dec_dim), dec_dim, dec_heads), 
                     AttentionLayer(LinearAttention(dec_dim), dec_dim, dec_heads, 
                                    d_keys=attr_emb_dim // dec_heads, 
                                    d_values=attr_emb_dim // dec_heads),
@@ -134,7 +134,7 @@ class Expressor(nn.Module):
             # autoregressive version for inference
             self.dec_block = RecurrentDecoderBlock([
                 RecurrentTransformerDecoderLayer(
-                    AttentionLayer(LinearAttention(dec_dim), dec_dim, dec_heads), 
+                    AttentionLayer(CausalLinearAttention(dec_dim), dec_dim, dec_heads), 
                     AttentionLayer(LinearAttention(dec_dim), dec_dim, dec_heads, 
                                    d_keys=attr_emb_dim // dec_heads, 
                                    d_values=attr_emb_dim // dec_heads),
@@ -204,7 +204,7 @@ class Expressor(nn.Module):
             out = self.dec_block(dec_emb, zs)
         else:
             dec_emb = dec_emb.squeeze(1)
-            out, state = self.dec_block(dec_emb, zs, state)
+            out, state = self.dec_block(dec_emb, zs, state=state)
         
         # type residual (optional)
         if self.out_t_types[0] == 'meta':
@@ -239,7 +239,7 @@ class Expressor(nn.Module):
         """
         (b, s, t) = targets.size()
         assert len(pred_tokens) == t
-        assert (b, s) == pred_tokens[0].size[0: 2]
+        assert (b, s) == pred_tokens[0].size()[0: 2]
         assert b == 1
 
         criterion = nn.CrossEntropyLoss()
@@ -247,7 +247,7 @@ class Expressor(nn.Module):
 
         for idx in range(len(self.out_t_types)):
             pred = pred_tokens[idx].permute(0, 2, 1)
-            losses.append(criterion(pred, targets[..., idx]).detach_())
+            losses.append(criterion(pred, targets[..., idx]))
             
         overall_loss = torch.stack(losses).sum() / len(losses)
         
@@ -271,7 +271,7 @@ class Expressor(nn.Module):
             # copy original y to output list
             output.append(copy.deepcopy(y))
             # forward pass
-            h = y_init[i - 1]
+            h = y_init[i - 1].unsqueeze(0)
             h, state = self.forward(x, h, attr, state, y_type)
         
         # infer rest of output sequence

@@ -76,7 +76,7 @@ class SaverAgent():
         self.init_time = time.time()
         self.global_step = 0
         
-        if save_name[0:4] != 'run_':
+        if save_name and save_name[0:4] != 'run_':
             # directory name
             name = 'run_000'
             names = sorted(filter(lambda x: (os.path.isdir(os.path.join(save_root, x)) 
@@ -228,7 +228,7 @@ class Controller():
         
         # create folders
         os.makedirs(path, exist_ok=True)
-        os.makedirs(os.path.join(path, 'runs'), exist_ok=True)
+        # os.makedirs(os.path.join(path, 'runs'), exist_ok=True)
         
         # save object
         self.class_save()
@@ -310,6 +310,9 @@ class Controller():
                                **model_kwargs)
         make_mirror(model, eval_model)
         
+        print("Eval model: ")
+        print(eval_model)
+
         n_params = network_params(model)
         print(f"Model parameters: {n_params}")
         
@@ -400,7 +403,7 @@ class Controller():
                 # update cumulative loss for epoch
                 total_loss.detach_()
                 cum_loss += total_loss.item()
-                cum_losses += np.array([l.item() for l in losses])
+                cum_losses += np.array([l.detach_().item() for l in losses])
                 
                 # weights update
                 if idx % grad_acc_freq == 0 or (len(train_loader) - idx) < grad_acc_freq:
@@ -434,7 +437,7 @@ class Controller():
             
             # log training info
             saver.add_summary('epoch loss', cum_loss)
-            for t_type, loss in zip(out_pos.values, cum_losses):
+            for t_type, loss in zip(out_pos.values(), cum_losses):
                 saver.add_summary(f"{t_type} loss", loss)
             
             # validation
@@ -446,7 +449,7 @@ class Controller():
                 # get evaluation metrics
                 metrics = self.evaluate(eval_model,
                                         device=device,
-                                        val_loader=val_loader,
+                                        loader=val_loader,
                                         n_eval_init=n_eval_init)
 
                 # ensure model is in training mode
@@ -497,7 +500,7 @@ class Controller():
                 
                  # unpack data
                 enc_in = data['in'].to(device)
-                attr_in = data['attr'].to(device)
+                attr_in = data['attr'].to(device) if 'attr' in data else None
                 targets = data['out'].to(device)
                 name = data['name']
                 
@@ -572,7 +575,7 @@ class Controller():
                                                                 metrics['losses'])))
                 
         # log validation info
-        saver.add_summary(':oss', metrics['loss'])
+        saver.add_summary('loss', metrics['loss'])
         for t_type, loss in zip(out_pos.values, metrics['losses']):
             saver.add_summary(f"{t_type} loss", loss)
         

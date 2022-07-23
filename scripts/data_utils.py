@@ -64,22 +64,22 @@ class WordDataset(Dataset):
         
         # filter out desired tokens for words, and filter out only desired tracks      
         in_pos = sorted([meta['in_pos'][t] for t in in_types])
-        if 'meta' in meta['in_pos']:
-            in_pos = [0] + in_pos
+        # if 'meta' in meta['in_pos']:
+        #     in_pos = [0] + in_pos
         self.in_data = [[[word[i] for i in in_pos] for word in track] for \
                         idx, track in enumerate(data[0]) if idx in t_idxs]
         
         self.attr_data = None
         if len(attr_types):
             attr_pos = sorted([meta['attr_pos'][t] for t in attr_types])
-            if 'meta' in meta['attr_pos']:
-                attr_pos = [0] + attr_pos
+            # if 'meta' in meta['attr_pos']:
+            #     attr_pos = [0] + attr_pos
             self.attr_data = [[[word[i] for i in attr_pos] for word in track] for \
                             idx, track in enumerate(data[1]) if idx in t_idxs]
 
         out_pos = sorted([meta['out_pos'][t] for t in out_types])
-        if 'meta' in meta['out_pos']:
-            out_pos = [0] + out_pos
+        # if 'meta' in meta['out_pos']:
+        #     out_pos = [0] + out_pos
         self.out_data = [[[word[i] for i in out_pos] for word in track] for \
                          idx, track in enumerate(data[2]) if idx in t_idxs]
 

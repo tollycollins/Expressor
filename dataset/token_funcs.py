@@ -62,15 +62,18 @@ from scipy.interpolate import interp1d
 import utils
 
 
+def get_type_options():
+    options =  {
+        'eos': 1,
+        'metric': 2,
+        'note': 3
+    }
+    return options
+
+
 def type_token_val(type_str):
-    if type_str == 'eos':
-        return 1
-    elif type_str == 'metric':
-        return 2
-    elif type_str == 'note':
-        return 3
-    else:
-        raise RuntimeError(f"Invalid string for type token: {type_str}")
+    options = get_type_options()
+    return options[type_str]
 
 
 def bar_tokens(beats, downbeats):

@@ -18,7 +18,7 @@ class Embedding(nn.Module):
     def __init__(self, vocab_size, dim_emb):
         super().__init__()
         
-        self.dim_model = dim_emb
+        self.dim_emb = dim_emb
         self.emb = nn.Embedding(vocab_size, dim_emb)
         
     def forward(self, x):
@@ -93,7 +93,7 @@ class DecoderBlock(nn.Module):
         L_prime = zs[0].shape[1]
         y_mask = TriangularCausalMask(L, device=y.device)
         y_length_mask = LengthMask(y.new_full((N, ), L, dtype=torch.int64))
-        zs_mask = FullMask(L, L_prime, device=y.device)
+        zs_mask = FullMask(N=L, M=L_prime, device=y.device)
         zs_length_mask = LengthMask(y.new_full((N, ), L_prime, dtype=torch.int64))
 
         # apply layers
@@ -124,7 +124,7 @@ class RecurrentDecoderBlock(nn.Module):
         # mask
         N = y.shape[0]
         L_prime = zs[0].shape[1]
-        zs_length_mask = LengthMask(y.new_full((N, ), L_prime, dtype=torch.int64))
+        zs_length_mask = LengthMask(y.new_full((N,), L_prime, dtype=torch.int64))
         
         # apply layers
         for idx, layer in enumerate(self.layers):
