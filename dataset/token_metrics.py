@@ -29,17 +29,26 @@ def get_val_frequencies(tokens_root, t_type, verbose=True, print_freqs=False,
                 token_data = pickle.load(f)
             if type(token_data[t_type]) is list:
                 for token in token_data[t_type]:
-                    if token[1] in unique_vals:
-                        unique_vals[token[1]] += 1
+                    try:
+                        t = token[1]
+                    except IndexError:
+                        t = token
+                    if t in unique_vals:
+                        unique_vals[t] += 1
                     else:
-                        unique_vals[token[1]] = 1
+                        unique_vals[t] = 1
+            
             else:
                 for tokens in token_data[t_type].values():
                     for token in tokens:
-                        if token[1] in unique_vals:
-                            unique_vals[token[1]] += 1
+                        try:
+                            t = token[1]
+                        except IndexError:
+                            t = token
+                        if t in unique_vals:
+                            unique_vals[t] += 1
                         else:
-                            unique_vals[token[1]] = 1
+                            unique_vals[t] = 1
             if by_track:
                 all_unique_vals[entry.name] = unique_vals
     

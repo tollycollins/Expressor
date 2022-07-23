@@ -53,7 +53,7 @@ def get_word_seq(tokens, cw, t_pos, val2idx,
         # don't consider anacrusis for beat tokens
         if idx > 0:  
             # bar token
-            if bar_tokens is not None and tokens['bar'][idx - 1][1] == 1:
+            if bar_tokens is not None and tokens['bar'][idx - 1] == 1:
                 bar_word = cw.copy()
                 if type_tokens:
                     bar_word[0] = token_funcs.type_token_val('metric')
@@ -70,7 +70,7 @@ def get_word_seq(tokens, cw, t_pos, val2idx,
                     
             # metric tokens
             for t_type in metric_t_types:
-                token = tokens[t_type][idx - 1][1]
+                token = tokens[t_type][idx - 1]
                 word[t_pos[t_type]] = val2idx[t_type][token]
                     
             # add word
@@ -134,7 +134,7 @@ def compute_words(tokens_root,
                 token_dict = pickle.load(f)
             for t_type in in_metric_t_types + attr_metric_t_types + out_metric_t_types:
                 for token in token_dict[t_type]:
-                    unique_vals[t_type].add(token[1])
+                    unique_vals[t_type].add(token)
             for t_type in in_note_t_types + attr_note_t_types + out_note_t_types:
                 for tokens in token_dict[t_type].values():
                     for token in tokens:

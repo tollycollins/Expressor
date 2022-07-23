@@ -286,10 +286,10 @@ class Controller():
         # get positions of tokens in words
         in_pos, attr_pos, out_pos = self.new_positions((in_types, attr_types, out_types))
 
-        # get vocabulary sizes
-        in_vocab_sizes = [len(self.idx2val[t]) for t in in_pos.values()]
-        attr_vocab_sizes = [len(self.idx2val[t]) for t in attr_pos.values()]
-        out_vocab_sizes = [len(self.idx2val[t]) for t in out_pos.values()]
+        # get vocabulary sizes [add 1 for 'no token']
+        in_vocab_sizes = [len(self.idx2val[t]) + 1 for t in in_pos.values()]
+        attr_vocab_sizes = [len(self.idx2val[t]) + 1 for t in attr_pos.values()]
+        out_vocab_sizes = [len(self.idx2val[t]) + 1 for t in out_pos.values()]
     
         # initialise model
         print("Initialising model ...")

@@ -90,7 +90,7 @@ def bar_tokens(beats, downbeats):
             db = next(db_it)
         else: 
            val = 0
-        bar_out.append((time, val))
+        bar_out.append(val)
     return bar_out
 
 
@@ -130,7 +130,7 @@ def beat_tokens(beats, downbeats):
             beat = initial_BPB - leading_beats + 1
             if beat <= 0:
                 raise RuntimeError("More initial beats than time signature allows")
-            beats_out.append((time, beat))
+            beats_out.append(beat)
             leading_beats -= 1
         
         else:
@@ -140,7 +140,7 @@ def beat_tokens(beats, downbeats):
                 db = next(db_it)
 
             # record beat token
-            beats_out.append((time, beat_num))
+            beats_out.append(beat_num)
             beat_num += 1
     
     return beats_out
@@ -179,9 +179,7 @@ def tempo_tokens(beats,
     # ibi tokens
     ibi_out = None
     if ibi_tokens:
-        ibi_out = []
-        for i, time in enumerate(beats):
-            ibi_out.append((time, ibi_vals[i]))
+        ibi_out = ibi_vals
     
     band_out = None
     local_tempo_out = None
@@ -193,8 +191,8 @@ def tempo_tokens(beats,
                                hysteresis=hysteresis,
                                allow_zero=allow_zero)
         
-        for i, ibi in enumerate(ibi_vals):
-            band_out.append((beats[i], band.update(ibi)))
+        for ibi in ibi_vals:
+            band_out.append(band.update(ibi))
         
         # local tempo tokens
         if local_tempo_tokens:
@@ -214,11 +212,11 @@ def tempo_tokens(beats,
             
             # calculate local tempi
             # median filter IBIs, adjusting filter window by tempo band
-            for i, (time, band) in enumerate(band_out):
+            for i, band in enumerate(band_out):
                 win_len = min(win_lens[band], i, len(ibi_vals) - i - 1)
                 vals = ibi_vals[i - win_len: i + win_len + 1]
-                local_tempo_out.append((time, utils.quantize(60 / statistics.median(vals), 
-                                                     local_tempo_quant)))
+                local_tempo_out.append(utils.quantize(60 / statistics.median(vals), 
+                                                     local_tempo_quant))
     
     return ibi_out, band_out, local_tempo_out
 
@@ -259,17 +257,17 @@ def time_sig_tokens(beats,
             ts = time_sigs[ts_ptr][1]
             # add token
             if ts in allowed_time_sigs:
-                time_sig_out.append((time, ts))
+                time_sig_out.append(ts)
             elif allow_other:
-                time_sig_out.append((time, 'other'))
+                time_sig_out.append('other')
             else:
                 raise RuntimeError(f"Illegal time signature provided: {ts}")
             # move on pointer
             ts_ptr += 1
         elif conti:
-            time_sig_out.append((time, 'conti'))
+            time_sig_out.append('conti')
         else:
-            time_sig_out.append((time, ts))
+            time_sig_out.append(ts)
     
     return time_sig_out
 
@@ -364,7 +362,7 @@ def note_tokens(notes,
 
 def dynamics_tokens(notes_gp, 
                     beats,
-                    mean_len=3,
+                    mean_len=1,
                     mean_quant=1,
                     std_quant=1,
                     bands=[0, 31, 63, 95, 127],
@@ -393,13 +391,8 @@ def dynamics_tokens(notes_gp,
         note_absolute_velocity_tokens
         note_velocity_band_tokens
         note_velocity_std_tokens
-    """
-    # # group notes by beat
-    # notes_gp, _ = utils.group_by_beat(beats, notes=pm_notes)
-    
-    # extend beats list for anacrusis
-    ext_beats = [0] + beats
-
+        note_velocity_diff_from _mean
+    """    
     # for calculating bands
     local_band = utils.Band(bounds=bands, upper_bound=True, hysteresis=band_hysteresis)
     note_band = utils.Band(bounds=bands, upper_bound=True, hysteresis=band_hysteresis)
@@ -408,6 +401,7 @@ def dynamics_tokens(notes_gp,
     note_std_out = {i: [] for i in range(len(beats) + 1)}
     note_abs_vel_out = {i: [] for i in range(len(beats) + 1)}
     note_band_out = {i: [] for i in range(len(beats) + 1)}
+    note_vel_diff_out = {i: [] for i in range(len(beats) + 1)}
     num_gps = len(notes_gp)
     prev_mean = 0
     prev_median = 0
@@ -433,9 +427,9 @@ def dynamics_tokens(notes_gp,
         # no metric token for anacrusis
         if idx > 0:
             # make tokens
-            local_mean_out.append((ext_beats[idx], utils.quantize(mean_vel, mean_quant)))
+            local_mean_out.append(utils.quantize(mean_vel, mean_quant))
 
-            local_std_out.append((ext_beats[idx], utils.quantize(std_vel, std_quant)))
+            local_std_out.append(utils.quantize(std_vel, std_quant))
             
             # local velocity band
             gp_range = (max(idx - band_win // 2, 0), min((idx + band_win // 2) + 1, num_gps))
@@ -447,7 +441,7 @@ def dynamics_tokens(notes_gp,
             else:
                 median_vel = statistics.median(velocities)
                 prev_median = median_vel
-            local_band_out.append((ext_beats[idx], local_band.update(median_vel)))
+            local_band_out.append(local_band.update(median_vel))
         
         for note in group:
             # note-wise deviation from local velocity mean
@@ -466,17 +460,21 @@ def dynamics_tokens(notes_gp,
             
             # velocity band
             note_band_out[idx].append((note.start, note_band.update(note.velocity)))
+
+            # absolute difefrence from local mean
+            note_vel_diff_out[idx].append((note.start, int(round(note.velocity - mean_vel))))
     
     return local_mean_out, local_std_out, local_band_out, \
-            note_std_out, note_abs_vel_out, note_band_out
+            note_std_out, note_abs_vel_out, note_band_out, \
+            note_vel_diff_out
             
 
-def timing_labels(notes_score,
-                  notes_perf,
+def timing_labels(notes_score_gp,
+                  notes_perf_gp,
                   dur_score_gp,
                   beats_score,
                   beats_perf,
-                  artic_quant=0.1,
+                  artic_quant=0.05,
                   artic_lims=None,
                   dev_quant=0.01, 
                   dev_lims=None,
@@ -510,39 +508,39 @@ def timing_labels(notes_score,
                                   (unit: proportion of a beat)
         note_deviation_labels: tokens for note timing deviation from expected
                                (unit: proportion of a beat)
-    """
-    # group by beat
-    notes_score_gp, notes_perf_gp = utils.group_by_beat(beats_score, notes=notes_score, 
-                                                        aligned_notes=notes_perf)
-    # dur_score_gp, _ = utils.group_by_beat(beats_score, tokens=durations_score)
-    
+    """    
     # get IBIs
     ibis_perf = utils.ibis(beats_perf)
+    ibis_score = utils.ibis(beats_score)
     # add IBI value for beat 0
     ibis_perf = [ibis_perf[0]] + ibis_perf
+    ibis_score = [ibis_score[0]] + ibis_score
 
     # extend beats for beat 0 and n + 1
     beats_score_ext = [2 * beats_score[0] - beats_score[1]] + beats_score \
                       + [2 * beats_score[-1] - beats_score[-2]]
-    beats_perf_ext = [beats_perf[0] - ibis_perf[0]] + beats_perf + \
-                     [beats_perf[-1] + ibis_perf[-1]]
-    
-    # get expected beat times
-    exp_beats = utils.extrapolate_beat(notes_score_gp, notes_perf_gp,
-                                       beats_score, beats_perf,
-                                       cubic_len=cubic_len,
-                                       in_beat_weight=beat_in_beat_weight)
-    
-    # get cubic spline interpolation function for instantaneous timing
-    # beat_interp = interp1d(beats_score_ext, beats_perf_ext, kind='cubic',
-    #                        fill_value='extrapolate', assume_sorted=True)
-    beat_interp = interp1d(beats_score, beats_perf, kind='cubic',
-                           fill_value='extrapolate', assume_sorted=True)
+    # entent beats for beat 0 and up to n + 20
+    beats_perf_ext = [beats_perf[0] - ibis_perf[0]] + beats_perf
+    for i in range(20):
+        beats_perf_ext.append(beats_perf[-1] + ibis_perf[-1])
     
     artic_out = collections.defaultdict(list)
     dev_out = collections.defaultdict(list)
     
     if calc_type == 'dynamic':
+
+        # get expected beat times
+        exp_beats = utils.extrapolate_beat(notes_score_gp, notes_perf_gp,
+                                           beats_score, beats_perf,
+                                           cubic_len=cubic_len,
+                                           in_beat_weight=beat_in_beat_weight)
+
+        # get cubic spline interpolation function for instantaneous timing
+        # beat_interp = interp1d(beats_score_ext, beats_perf_ext, kind='cubic',
+        #                        fill_value='extrapolate', assume_sorted=True)
+        beat_interp = interp1d(beats_score, beats_perf, kind='cubic',
+                               fill_value='extrapolate', assume_sorted=True)
+
         for beat, notes_perf in enumerate(notes_perf_gp):
             
             for idx, note in enumerate(notes_perf):
@@ -627,10 +625,73 @@ def timing_labels(notes_score,
     
     if calc_type == 'linear':
         for beat, notes_perf in enumerate(notes_perf_gp):
-            ...
+            
+            for idx, note in enumerate(notes_perf):
+                
+                # --- articulation --- #
 
+                # expected number of beats
+                exp_dur = dur_score_gp[beat][idx][1]
+                
+                # performed duration in sec
+                perf_dur = note.end - note.start
 
+                # convert to performed duration in beats
+                perf_dur = 0
+                beats = 0
+                # if note end before the next beat
+                if note.end <= beats_perf_ext[beat + 1]:
+                    perf_dur += (note.end - note.start) / ibis_perf[beat]
+                else:
+                    # first fractional part
+                    perf_dur += (beats_perf_ext[beat + 1] - note.start) / ibis_perf[beat]
+                    beats += 1
 
+                    # whole beats
+                    while note.end > beats_perf_ext[beat + beats + 1]:
+                        perf_dur += 1
+                        beats += 1
+
+                    # end fractional part
+                    perf_dur += (note.end - beats_perf_ext[beat + beats]) / \
+                                ibis_perf[beat + beats]
+    
+                if exp_dur:
+                    # articulation difference as proportion of expected
+                    artic = (perf_dur - exp_dur) / exp_dur
+                    if artic_lims is not None:
+                        artic = artic_lims[0] if artic < artic_lims[0] else artic
+                        artic = artic_lims[1] if artic > artic_lims[1] else artic
+                else: 
+                    artic = artic_quant            
+    
+                # get equivalent score time for reference
+                time = notes_score_gp[beat][idx].start
+                            
+                # add to output
+                artic_out[beat].append((time, utils.quantize(artic, artic_quant)))
+                artic_whole_out[beat].append((time, int(artic)))
+                artic_fract_out[beat].append((time, utils.quantize(artic % 1, artic_quant)))
+
+                # --- timing deviation --- #
+                
+                # expected start time from score version
+                exp_start = (notes_score_gp[beat][idx].start - beats_score_ext[beat]) / \
+                            ibis_score[beat]
+
+                # performed start time
+                perf_start = (note.start - beats_perf_ext[beat]) / ibis_perf[beat]
+
+                # make tokens
+                dev = perf_start - exp_start
+                if dev_lims is not None:
+                    dev = dev_lims[0] if dev < dev_lims[0] else dev
+                    dev = dev_lims[1] if dev > dev_lims[1] else dev
+
+                dev_out[beat].append((time, utils.quantize(dev, dev_quant)))             
+                dev_whole_out[beat].append((time, int(dev)))
+                dev_fract_out[beat].append((time, utils.quantize(dev % 1, dev_quant)))
+    
     return artic_out, artic_whole_out, artic_fract_out, \
         dev_out, dev_whole_out, dev_fract_out
 
@@ -710,7 +771,6 @@ def harmonic_tokens(notes_score_gp, beats_score,
     chord_quality_out = []
     NO_CHORD = 'none'
     CONTI = 'conti'
-    current_chord = NO_CHORD
     for idx, beat in enumerate(beats_score):
         # get notes
         notes = []
@@ -740,20 +800,20 @@ def harmonic_tokens(notes_score_gp, beats_score,
             
             # add to outputs
             if not chord.is_complete():
-                keys_out.append((beat, NO_CHORD))
-                chord_quality_out.append((beat, NO_CHORD))
+                keys_out.append(NO_CHORD)
+                chord_quality_out.append(NO_CHORD)
             
-            elif conti and idx > 0 and chord.root() == keys_out[-1][1]:
-                keys_out.append((beat, CONTI))
-                chord_quality_out.append((beat, CONTI))
+            elif conti and idx > 0 and chord.root() == keys_out[-1]:
+                keys_out.append(CONTI)
+                chord_quality_out.append(CONTI)
             
             else: 
-                keys_out.append((beat, chord.root()))
-                chord_quality_out.append((beat, chord.quality))
+                keys_out.append(chord.root())
+                chord_quality_out.append(chord.quality)
         
         else:
-            keys_out.append((beat, NO_CHORD))
-            chord_quality_out.append((beat, NO_CHORD))
+            keys_out.append(NO_CHORD)
+            chord_quality_out.append(NO_CHORD)
     
     return keys_out, chord_quality_out
 
@@ -766,7 +826,7 @@ def rubato_tokens(beats, beats_type):
     """
     rubato_out = []
     for beat in beats:
-        rubato_out.append((beat, int(beats_type[beat] == 'bR')))
+        rubato_out.append(int(beats_type[beat] == 'bR'))
             
     return rubato_out
 

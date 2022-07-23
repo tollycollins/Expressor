@@ -178,13 +178,12 @@ class Token_funcs(unittest.TestCase):
 
     def test_bar_tokens(self):
         beats, dbs = [1, 2, 3, 4, 5], [2, 4, 5]
-        exp = [(beat, int(beat in dbs)) for beat in beats]
+        exp = [int(beat in dbs) for beat in beats]
         self.assertEqual(token_funcs.bar_tokens(beats, dbs), exp)
     
     def test_beat_tokens(self):
         beat_times = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
-        exp_tokens = [(1, 3), (2, 4), (3, 1), (4, 2), (5, 3), (6, 4), (7, 1), (8, 2), 
-                      (9, 3), (10, 1), (11, 2), (12, 3), (13, 4), (14, 5)]
+        exp_tokens = [3, 4, 1, 2, 3, 4, 1, 2, 3, 1, 2, 3, 4, 5]
         downbeat_times = [3, 7, 10]
         tokens = token_funcs.beat_tokens(beat_times, downbeat_times)
         self.assertEqual(tokens, exp_tokens)
@@ -193,26 +192,24 @@ class Token_funcs(unittest.TestCase):
         beat_times = Token_funcs.metadata[Token_funcs.test_path]['midi_score_beats']
         downbeat_times = Token_funcs.metadata[Token_funcs.test_path]['midi_score_downbeats']
         tokens = token_funcs.beat_tokens(beat_times, downbeat_times)
-        for i, beat in enumerate(beat_times):
-            self.assertEqual(beat, tokens[i][0])
+        self.assertEqual(len(beat_times), len(tokens))
 
     def test_tempo_tokens(self):
         beats = [1, 2, 3, 3.5, 4, 4.5, 5, 10, 11, 12, 13]
-        exp_bands = [(beats[i], n) for i, n in enumerate([1, 1, 3, 3, 3, 3, 0, 1, 1, 1, 1])]
+        exp_bands = [1, 1, 3, 3, 3, 3, 0, 1, 1, 1, 1]
         exp_medians = [60, 60, 120, 120, 60, 60, 60, 60, 60, 60, 60]
-        exp_loc = [(beats[i], n) for i, n in enumerate(exp_medians)]
         _, b, l = token_funcs.tempo_tokens(beats)
         self.assertEqual(b, exp_bands)
-        self.assertEqual(l, exp_loc)
+        self.assertEqual(l, exp_medians)
 
     def test_time_sig_tokens(self):
         beats = [1, 2, 4, 5]
         ts = [(0.5, '4/4'), (3, '6/8'), (5, 'c')]
-        exp = [(1, '4/4'), (2, '4/4'), (4, '6/8'), (5, 'other')]
+        exp = ['4/4', '4/4', '6/8', 'other']
         sigs = asap_metrics.time_signature(verbose=False)
         self.assertEqual(token_funcs.time_sig_tokens(beats, ts, sigs), exp)
         ts[0] = (1.5, '4/4')
-        exp[1] = (2, 'conti')
+        exp[1] = ('conti')
         self.assertEqual(token_funcs.time_sig_tokens(beats, ts, sigs, conti=True), exp)
         with self.assertRaises(RuntimeError):
             token_funcs.time_sig_tokens(beats, ts, sigs, allow_other=False)
@@ -242,19 +239,19 @@ class Token_funcs(unittest.TestCase):
         n = [pm.Note(v, 1, times[i], 1) for i, v in enumerate(vals)]
         notes = [[], [n[0], n[1], n[2], n[3]], [], [n[4], n[5]], [n[6]]]
         # band of local median (default win len = 1 beat)
-        exp_loc_b = [(1, 1), (2, 1), (4, 1), (5, 2)]
+        exp_loc_b = [1, 1, 1, 2]
         # local mean velocity (default window length 3, quant=1)
-        exp_loc_m = [(1, 43), (2, 50), (4, 70), (5, 70)]
+        exp_loc_m = [43, 50, 70, 70]
         # local standard deviation (default window lenth3, quant=1)
-        exp_loc_std = [(1, 23), (2, 21), (4, 8), (5, 8)]
+        exp_loc_std = [23, 21, 8, 8]
         exp_n_vel = {0: [], 1: [(1, 20), (1, 32), (1, 40), (1.5, 80)], 
                      2: [], 3: [(4.5, 70), (4.6, 60)], 4: [(5.5, 80)]}
         exp_n_vel_b = {0: [], 1: [(1, 0), (1, 0), (1, 1), (1.5, 2)], 
                        2: [], 3: [(4.5, 2), (4.6, 2)], 4: [(5.5, 2)]}
         exp_n_std = {0: [], 1: [(1, -1), (1, -0.4), (1, -0.2), (1.5, 1.6)], 
                      2: [], 3: [(4.5, 0), (4.6, -1.2)], 4: [(5.5, 1.2)]}
-        loc_m, loc_std, loc_b, n_std, n_vel, n_vel_b = \
-            token_funcs.dynamics_tokens(notes, beats, bands=bands)
+        loc_m, loc_std, loc_b, n_std, n_vel, n_vel_b, _ = \
+            token_funcs.dynamics_tokens(notes, beats, bands=bands, mean_len=3)
         self.assertEqual(loc_m, exp_loc_m)
         self.assertEqual(loc_std, exp_loc_std)
         self.assertEqual(loc_b, exp_loc_b)
@@ -276,13 +273,21 @@ class Token_funcs(unittest.TestCase):
                     3: [], 4: [(5.5, 0.5)]}
         notes_s = [pm.Note(1, pitches[i], t, ends_s[i]) for i, t in enumerate(times_s)]
         notes_p = [pm.Note(1, pitches[i], t, ends_p[i]) for i, t in enumerate(times_p)]
+        notes_s_gp = [[], [notes_s[0]], 
+                      [notes_s[1], notes_s[2], notes_s[3], notes_s[4], notes_s[5]], 
+                      [], [notes_s[6]]]
+        notes_p_gp = [[], [notes_p[0]], 
+                      [notes_p[1], notes_p[2], notes_p[3], notes_p[4], notes_p[5]], 
+                      [], [notes_p[6]]]
         # a2 = [((ends_p[i] - times_p[i]) - (ends_s[i] - times_s[i]) * 2) 
         #      / ((ends_s[i] - times_s[i]) * 2) for i in range(len(pitches))]
         exp_art = {0: [], 1: [(1, a[0])], 2: [(2, a[1]), (2, a[2]), (2, a[3]), (3, a[4]), (3.5, a[5])], 
                    3: [], 4: [(5.5, a[6])]}
         exp_dev = {0: [], 1: [(1, -0.25)], 2: [(2, 0), (2, 0), (2, 0.5), (3, -0.1), (3.5, 0.32)], 
                    3: [], 4: [(5.5, -0.35)]}
-        art, dev = token_funcs.timing_labels(notes_s, notes_p, dur_s_gp, beats_s, beats_p)
+        art, _, _, dev, _, _ = token_funcs.timing_labels(notes_s_gp, notes_p_gp, dur_s_gp, 
+                                                         beats_s, beats_p, calc_type='dynamic',
+                                                         artic_quant=0.1)
         for i, v in art.items():
             if v == []:
                 self.assertEqual(exp_art[i], [])
@@ -293,7 +298,21 @@ class Token_funcs(unittest.TestCase):
                     self.assertAlmostEqual(time, exp_dev[i][idx][0], 2, f"beat {i}, num {idx}")
                     self.assertAlmostEqual(dev[i][idx][1], exp_dev[i][idx][1], 2, 
                                            f"beat {i}, num {idx}") 
-          
+        art, _, _, dev, _, _ = token_funcs.timing_labels(notes_s_gp, notes_p_gp, dur_s_gp, 
+                                                        beats_s, beats_p, calc_type='linear')
+        exp_art = {0: [], 1: [(1, -0.25)], 2: [(2, 1.2), (2, 0), (2, 0), (3, 0), (3.5, -0.05)], 
+                   3: [], 4: [(5.5, -0.5)]}
+        exp_dev = {0: [], 1: [(1, -0.25)], 2: [(2, 0), (2, 0), (2, 0.5), (3, -0.1), (3.5, 0.05)], 
+                   3: [], 4: [(5.5, -0.35)]}
+        for i, v in art.items():
+            if v == []:
+                self.assertEqual(exp_art[i], [])
+            else:
+                for idx, (time, val) in enumerate(v):
+                    self.assertEqual(time, exp_art[i][idx][0], f"beat {i}, num {idx}")
+                    self.assertEqual(val, exp_art[i][idx][1], f"beat {i}, num {idx}")
+                    self.assertEqual(time, exp_dev[i][idx][0], f"beat {i}, num {idx}")
+                    self.assertEqual(dev[i][idx][1], exp_dev[i][idx][1], f"beat {i}, num {idx}")           
     
     def test_harmonic_tokens(self):
         path = os.path.join("dataset/asap-dataset/", Token_funcs.test_path)
