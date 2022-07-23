@@ -17,8 +17,9 @@ params = {
             'in_note_t_types': ['pitch', 'start', 'dur_full', 'dur_fract'],
             'attr_metric_t_types': [],
             'attr_note_t_types': [],
-            'out_metric_t_types': ['local_tempo', 'local_vel_mean'],
-            'out_note_t_types': ['articulation', 'timing_dev', 'note_rel_vel']
+            'out_metric_t_types': ['ibi', 'local_vel_mean'],
+            'out_note_t_types': ['artic_whole', 'artic_fract', 'timing_dev_whole', 
+                                 'timing_dev_fract', 'note_vel_diff']
         }
     }
 }

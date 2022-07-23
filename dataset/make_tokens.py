@@ -40,17 +40,18 @@ def remove_invalid_beats(metadata, eps=1e-3):
         valid, invalid
     """
     valid = dict()
-    invalid = dict()
+    inv = dict()
     for k, v in metadata.items():
         valid[k] = v
         ibis = utils.ibis(v['performance_beats'])
         ibis.extend(utils.ibis(v['midi_score_beats']))
         for ibi in ibis:
             if ibi < eps:
-                invalid.update(valid.popitem())
+                valid.pop(k)
+                inv.update({k: v})
                 break
-
-    return valid, invalid
+    
+    return valid, inv
 
 
 def compute_tokens(t_types: dict, 
@@ -169,11 +170,11 @@ def compute_tokens(t_types: dict,
             tokens[t] = locals()[t]
     
     # expressive timing labels
-    timing = [t for t in ['artic', 'artic_whole', 'artic_fract', 'timing_dev'
+    timing = [t for t in ['artic', 'artic_whole', 'artic_fract', 'timing_dev',
                           'timing_dev_whole', 'timing_dev_fract'] if t in t_types]
     if len(timing):
         if 'duration' in t_types:
-            duration = t_types['duration']
+            duration = tokens['duration']
         elif duration is None:
             _, _, duration, _, _ = token_funcs.note_tokens(score_notes, beats_score)
         kwargs = dict(list(itertools.chain(*[list(t_types[i].items()) for i in timing])))
@@ -287,7 +288,7 @@ if __name__ == '__main__':
     Available token types and kwargs [copy and paste into dictionary in function below]:
         'bar': {},
         'beat': {},
-        'ibi': {'ibi_tokens': True},
+        'ibi': {'ibi_quant': 0.02},
         'tempo_band': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero},
         'local_tempo': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero, 
                         'median_time': 4, 'local_tempo_quant': 1},
@@ -303,9 +304,13 @@ if __name__ == '__main__':
         'note_vel': {},
         'note_vel_band': {'bands': default_dynamics_bands, 'band_hysteresis': (5, 5)},
         'note_rel_vel': {'note_std_quant': 0.2, 'note_std_bounds': (-15, 15)},
-        'artic': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timimng_calc_type},
-        'artic_whole': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timimng_calc_type},
-        'artic_fract': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timimng_calc_type},
+        'note_vel_diff': {},
+        'artic': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timimng_calc_type, 
+                  'last_note_max_hold': default_last_note_max_hold},
+        'artic_whole': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timimng_calc_type,
+                        'last_note_max_hold': default_last_note_max_hold},
+        'artic_fract': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timimng_calc_type, 
+                        'last_note_max_hold': default_last_note_max_hold},
         'timing_dev': {'dev_quant': default_dev_quant, 'dev_lims': default_dev_lims, 'cubic_len': default_cubic_len, 
                        'beat_in_beat_weight': default_beat_in_beat_weight, 'non_beat_in_beat_weight': default_non_beat_in_beat_weight,
                        'calc_type': default_timing_calc_type},
@@ -324,11 +329,11 @@ if __name__ == '__main__':
     default_tempo_allow_zero = False
 
     default_duration_quant = 1/60
-
-    default_dynamics_mean_len = 1
+    
+    default_dynamics_mean_len = 3
     default_dynamics_bands = [0, 31, 63, 95, 127]
     default_dynamics_band_hysteresis = (5, 5)
-
+    
     default_artic_quant = 0.05
     default_artic_lims = None
     default_timing_calc_type = 'linear'
@@ -337,42 +342,12 @@ if __name__ == '__main__':
     default_cubic_len = 6
     default_beat_in_beat_weight = 1
     default_non_beat_in_beat_weight = 2
+    default_last_note_max_hold = 24
     
     default_harmonic_reduce = False
     default_harmonic_extra_reduce = False
     default_harmonic_conti = True
     
-    create_training_data({'bar': {},
-                        'beat': {},
-                        'ibi': {'ibi_tokens': True},
-                        'tempo_band': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero},
-                        'local_tempo': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero, 
-                                        'median_time': 4, 'local_tempo_quant': 1},
-                        'time_sig': {'allowed_time_sigs': None, 'allow_other': True, 'min_freq': 0, 'conti': False},
-                        'pitch': {},
-                        'start': {'start_quant': 1/60},
-                        'duration': {'duration_quant': default_duration_quant},
-                        'dur_full': {'duration_quant': default_duration_quant, 'split_duration': True},
-                        'dur_fract': {'duration_quant': default_duration_quant, 'split_duration': True},
-                        'local_vel_band': {'mean_len': default_dynamics_mean_len, 'bands': default_dynamics_bands, 'band_win': 1, 'band_hysteresis': (5, 5)},
-                        'local_vel_mean': {'mean_len': default_dynamics_mean_len, 'mean_quant': 1},
-                        'local_vel_std': {'mean_len': default_dynamics_mean_len, 'std_quant': 1},
-                        'note_vel': {},
-                        'note_vel_band': {'bands': default_dynamics_bands, 'band_hysteresis': (5, 5)},
-                        'note_rel_vel': {'note_std_quant': 0.2, 'note_std_bounds': (-15, 15)},
-                        'artic': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timing_calc_type},
-                        'artic_whole': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timing_calc_type},
-                        'artic_fract': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timing_calc_type},
-                        'timing_dev': {'dev_quant': default_dev_quant, 'dev_lims': default_dev_lims, 'cubic_len': default_cubic_len, 
-                                       'beat_in_beat_weight': default_beat_in_beat_weight, 'non_beat_in_beat_weight': default_non_beat_in_beat_weight,
-                                       'calc_type': default_timing_calc_type},
-                        'timing_dev_whole': {'dev_quant': default_dev_quant, 'dev_lims': default_dev_lims, 'cubic_len': default_cubic_len, 
-                                             'beat_in_beat_weight': default_beat_in_beat_weight, 'non_beat_in_beat_weight': default_non_beat_in_beat_weight,
-                                             'calc_type': default_timing_calc_type},
-                        'timing_dev_fract': {'dev_quant': default_dev_quant, 'dev_lims': default_dev_lims, 'cubic_len': default_cubic_len, 
-                                             'beat_in_beat_weight': default_beat_in_beat_weight, 'non_beat_in_beat_weight': default_non_beat_in_beat_weight,
-                                             'calc_type': default_timing_calc_type},
-                        'keys': {'reduce': default_harmonic_reduce, 'extra_reduce': default_harmonic_extra_reduce, 'conti': default_harmonic_conti},
-                        'harmonic_quality': {'reduce': default_harmonic_reduce, 'extra_reduce': default_harmonic_extra_reduce, 'conti': default_harmonic_conti}}, 
+    create_training_data({'ibi': {'ibi_quant': 0.02}}, 
                          'dataset/tokens/t1', align_range=0.25, beat_eps=1e-2)
 

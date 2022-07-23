@@ -148,6 +148,7 @@ def beat_tokens(beats, downbeats):
 
 def tempo_tokens(beats, 
                  ibi_tokens=False,
+                 ibi_quant=0.02,
                  band_tokens=True,
                  lower_bounds=[5, 45, 85, 120, 150],
                  hysteresis=[5, 5],
@@ -179,7 +180,7 @@ def tempo_tokens(beats,
     # ibi tokens
     ibi_out = None
     if ibi_tokens:
-        ibi_out = ibi_vals
+        ibi_out = [utils.quantize(v, ibi_quant) for v in ibi_vals]
     
     band_out = None
     local_tempo_out = None
@@ -442,6 +443,11 @@ def dynamics_tokens(notes_gp,
                 median_vel = statistics.median(velocities)
                 prev_median = median_vel
             local_band_out.append(local_band.update(median_vel))
+
+        # mean of a single beat for note velocity difference token
+        if len(group):
+            sb_velocities = [n.velocity for n in group]
+            sb_mean_vel = statistics.mean(sb_velocities)
         
         for note in group:
             # note-wise deviation from local velocity mean
@@ -462,7 +468,7 @@ def dynamics_tokens(notes_gp,
             note_band_out[idx].append((note.start, note_band.update(note.velocity)))
 
             # absolute difefrence from local mean
-            note_vel_diff_out[idx].append((note.start, int(round(note.velocity - mean_vel))))
+            note_vel_diff_out[idx].append((note.start, int(round(note.velocity - sb_mean_vel))))
     
     return local_mean_out, local_std_out, local_band_out, \
             note_std_out, note_abs_vel_out, note_band_out, \
@@ -481,7 +487,8 @@ def timing_labels(notes_score_gp,
                   cubic_len=6,
                   beat_in_beat_weight=1,
                   non_beat_in_beat_weight=2,
-                  calc_type='linear'):
+                  calc_type='linear',
+                  last_note_max_hold=24):
     """
     args:
         notes_score: notes from score, aligned by list position with notes_perf
@@ -503,6 +510,8 @@ def timing_labels(notes_score_gp,
         calc_type:
             'linear': all values given relative to IBIs
             'dynamic': use interpolation and extrapolation to approximate real deviations
+        last_ntoe_max_hold: maximum number of beats allowed to be considered for duration of
+                            last notes in track
     return:
         note_articulation_labels: tokens for note articulation deviation from expected
                                   (unit: proportion of a beat)
@@ -521,7 +530,7 @@ def timing_labels(notes_score_gp,
                       + [2 * beats_score[-1] - beats_score[-2]]
     # entent beats for beat 0 and up to n + 20
     beats_perf_ext = [beats_perf[0] - ibis_perf[0]] + beats_perf
-    for i in range(20):
+    for i in range(last_note_max_hold):
         beats_perf_ext.append(beats_perf[-1] + ibis_perf[-1])
     
     artic_out = collections.defaultdict(list)
@@ -587,7 +596,7 @@ def timing_labels(notes_score_gp,
                     else:
                         # get distinct note times
                         times_score, times_perf = utils.distinct_times(notes_score_gp[beat][:idx], 
-                                                                    notes_perf[:idx])
+                                                                       notes_perf[:idx])
                             
                         # add beat time if it is missing
                         if times_score == [] or (round(Decimal(times_score[0]), 2) != 
@@ -648,13 +657,19 @@ def timing_labels(notes_score_gp,
                     beats += 1
 
                     # whole beats
-                    while note.end > beats_perf_ext[beat + beats + 1]:
-                        perf_dur += 1
-                        beats += 1
-
-                    # end fractional part
-                    perf_dur += (note.end - beats_perf_ext[beat + beats]) / \
-                                ibis_perf[beat + beats]
+                    try:
+                        while note.end > beats_perf_ext[beat + beats + 1]:
+                            perf_dur += 1
+                            beats += 1
+                    
+                        # end fractional part
+                        perf_dur += (note.end - beats_perf_ext[beat + beats]) / \
+                                    ibis_perf[beat + beats]
+                    
+                    except IndexError:
+                        # final note(s) held for longer than allowed maximum 
+                        #   number of beats in performance
+                        perf_dur = last_note_max_hold
     
                 if exp_dur:
                     # articulation difference as proportion of expected
