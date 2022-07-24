@@ -40,8 +40,18 @@ class PositionalEncoding(nn.Module):
         pos_enc = pos_enc.unsqueeze(0)
         self.register_buffer('pos_enc', pos_enc)
         
-    def forward(self, x):
-        x = self.dropout(x) + self.pos_enc[:, :x.size(1), :]
+    def forward(self, x, seq_pos=None):
+        """
+        args:
+            x: tensor (b, n, d), or (b, d) in recurrent case
+            seq_pos: position of x in output sequence for recurrent version
+        """
+        # standard encoding
+        if len(x.shape) == 3:
+            x = self.dropout(x) + self.pos_enc[:, :x.size(1), :]
+        # encoding for recurrent version
+        elif len(x.shape) == 2:
+            x = self.dropout(x) + self.pos_enc[:, seq_pos, :]
         return x
 
 
@@ -123,6 +133,7 @@ class RecurrentDecoderBlock(nn.Module):
         
         # mask
         N = y.shape[0]
+
         L_prime = zs[0].shape[1]
         zs_length_mask = LengthMask(y.new_full((N,), L_prime, dtype=torch.int64))
         

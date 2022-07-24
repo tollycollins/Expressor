@@ -83,10 +83,10 @@ params = {
                 "swa_start": 0.7,
                 "swa_init": 0.001,
                 "n_eval_init": 1,
-                "save_cond": 'loss',
+                "save_cond": 'val_loss',
                 "early_stop": 50,
-                "max_train_size": 10,
-                "max_eval_size": 5,
+                "max_train_size": 3,
+                "max_eval_size": 1,
                 "print_model": True
             }
         }

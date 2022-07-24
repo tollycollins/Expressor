@@ -135,13 +135,18 @@ class SaverAgent():
     def save_model(self, model, 
                          optimizer=None, 
                          outdir=None, 
-                         name='model'):
+                         name='model',
+                         just_weights=True):
         
         if outdir is None:
             outdir = self.save_dir
-        print(f' [*] saving model to {outdir}, name: {name}')
-        torch.save(model, os.path.join(outdir, name + '.pt'))
-        torch.save(model.state_dict(), os.path.join(outdir, name + '_params.pt'))
+        if just_weights:
+            print(f' [*] saving model weights to {outdir}, name: {name}')
+            torch.save(model.state_dict(), os.path.join(outdir, name + '_params.pt'))
+        else:
+            print(f' [*] saving model to {outdir}, name: {name}')
+            torch.save(model, os.path.join(outdir, name + '.pt'))
+            torch.save(model.state_dict(), os.path.join(outdir, name + '_params.pt'))
 
         if optimizer is not None:
             torch.save(optimizer.state_dict(), os.path.join(outdir, name + '_opt.pt'))
@@ -431,7 +436,7 @@ class Controller():
             cum_loss /= len(train_loader)
             cum_losses /= len(train_loader)
             print(f"----- epoch: {epoch + 1}/{epochs} | Loss: {cum_loss:08f}" \
-                  f"| time: {runtime} -----")
+                  f"| time: {runtime:03f} -----")
             print('    > ', ' | '.join(f"{t}: {l:06f}" for t, l in zip(out_pos.values(), 
                                                                        cum_losses)))
             
@@ -450,7 +455,7 @@ class Controller():
                 metrics = self.evaluate(eval_model,
                                         device=device,
                                         loader=val_loader,
-                                        n_eval_init=n_eval_init)
+                                        n_init=n_eval_init)
 
                 # ensure model is in training mode
                 model.train()
@@ -463,15 +468,15 @@ class Controller():
                 
                 # log validation info
                 saver.add_summary('validation loss', metrics['loss'])
-                for t_type, loss in zip(out_pos.values, metrics['losses']):
+                for t_type, loss in zip(out_pos.values(), metrics['losses']):
                     saver.add_summary(f"validation {t_type} loss", loss)
 
                 # save model
                 if save_cond == 'val_loss':
                     save, es_ctr = saver.check_save(metrics['loss'], 'lower')
                 
-                if save:
-                    saver.save_model(model, optimizer)
+                    if save:
+                        saver.save_model(model, optimizer)
                 
                 # early stopping
                 if early_stop and es_ctr > early_stop / val_freq:
@@ -482,21 +487,23 @@ class Controller():
         print("Training complete")
             
                 
-    def evaluate(self, model,
+    def evaluate(self, net,
                        device,
                        loader,
-                       n_eval_init,
+                       n_init,
                        output_path=None):
         
         # ensure model is in evaluation mode
-        model.eval()
+        net.eval()
         
         # track cumulative loss
         cum_loss = 0
-        cum_losses = np.zeros(len(model.dec_vocab_sizes))
+        cum_losses = np.zeros(len(net.dec_vocab_sizes))
         
         with torch.no_grad():
-            for data in loader:
+            for idx, data in enumerate(loader):
+
+                print(f"Evaluating {idx}/{len(loader)}...  ", end='\r')
                 
                  # unpack data
                 enc_in = data['in'].to(device)
@@ -504,14 +511,16 @@ class Controller():
                 targets = data['out'].to(device)
                 name = data['name']
                 
-                # get initial words for autoregressive inference
-                y_init = targets[:n_eval_init]
+                ###
+                # print(f"n_eval_init: {n_init}")
+                # print(f"targets shape: {targets.shape}")
+                # print(f"y_init shape: {y_init.shape}")
                 
                 # forward pass
-                y_pred = model.infer(enc_in, targets, y_init, attr_in)
+                y_pred = net.infer(enc_in, targets, n_init, attr_in)
                 
                 # calculate losses
-                total_loss, losses = model.compute_loss(y_pred, targets)                               
+                total_loss, losses = net.compute_loss(y_pred, targets[:, n_init:, :])                               
         
                 cum_loss += total_loss
                 cum_losses += np.array([l.item() for l in losses])
@@ -521,6 +530,9 @@ class Controller():
                 
                 # save output for testing
                 if output_path:
+                    # convert output logits to integer predictions
+                    y_pred = net.logits_to_int(y_pred)
+                    # save
                     filename = name + '_pred_tokens.pkl'
                     with open(filename, 'wb') as f:
                         pickle.dump(y_pred, targets)

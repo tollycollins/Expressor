@@ -16,6 +16,10 @@ import torch.nn as nn
 
 from fast_transformers.transformers import TransformerEncoderLayer, TransformerDecoderLayer
 from fast_transformers.recurrent.transformers import RecurrentTransformerDecoderLayer
+from fast_transformers.recurrent.attention import (
+    RecurrentAttentionLayer, RecurrentCrossAttentionLayer, 
+    RecurrentLinearAttention, RecurrentCrossLinearAttention
+)
 from fast_transformers.attention import AttentionLayer, LinearAttention, CausalLinearAttention
 
 from modules import (
@@ -134,10 +138,12 @@ class Expressor(nn.Module):
             # autoregressive version for inference
             self.dec_block = RecurrentDecoderBlock([
                 RecurrentTransformerDecoderLayer(
-                    AttentionLayer(CausalLinearAttention(dec_dim), dec_dim, dec_heads), 
-                    AttentionLayer(LinearAttention(dec_dim), dec_dim, dec_heads, 
-                                   d_keys=attr_emb_dim // dec_heads, 
-                                   d_values=attr_emb_dim // dec_heads),
+                    RecurrentAttentionLayer(RecurrentLinearAttention(dec_dim), 
+                                            dec_dim, dec_heads), 
+                    RecurrentCrossAttentionLayer(RecurrentCrossLinearAttention(dec_dim), 
+                                                 dec_dim, dec_heads, 
+                                                 d_keys=attr_emb_dim // dec_heads, 
+                                                 d_values=attr_emb_dim // dec_heads),
                     dec_dim,
                     d_ff=dec_ff_dim,
                     dropout=dec_dropout,
@@ -146,7 +152,7 @@ class Expressor(nn.Module):
             ])
         
         # type residual connection
-        if out_t_types[0] == 'meta':
+        if out_t_types[0] == 'type':
             self.res_concat_type = nn.Linear(dec_dim + dec_emb_dims[0], dec_dim)
         
         # individual outputs
@@ -155,18 +161,17 @@ class Expressor(nn.Module):
         # initialise weights
         self.apply(lambda module: weights_init(module, verbose=init_verbose))
 
-    def forward(self, x, y, attr=None, state=None, y_type=None):
+    def forward(self, x, y, attr=None, state=None, y_type=None, seq_pos=None):
         """
         linear transformer: b x seq_len x dim
-        x: compund words (integer encodings); b x s x d x t_type
+        x: compund words (integer encodings); (b x s x t_type)
         attr: sequence of attribute vectors
         y: if training, y is the sequence of target output words 
-            (also input to decoder for teacher forcing)
-           if inferring, y is the most recent output
+            (also input to decoder for teacher forcing) (b x s x t_type)
+           if inferring, y is the most recent output (b x t_type)
         state: decoder state for autoregressive inference
-        is_training: training mode (or inference)
-        # skips: add skip connections from encoder layers to cross-attention
-        # hidden: include final hidden encoder state in all cross attentions
+        y_type: pass type integer of intended output for inference mode
+        seq_pos: position in output sequence for positional encoding in inference mode
         """
         # embeddings
         enc_emb = torch.cat([e(x[..., i]) for i, e in enumerate(self.enc_embeddings)], 
@@ -178,10 +183,25 @@ class Expressor(nn.Module):
             attr_emb = torch.cat([e(attr[..., i]) for i, e in 
                                   enumerate(self.attr_embeddings)], dim=-1)        
         
+        ###
+        # print(f"y: {y.shape}")
+        # print(f"y_type: {y_type}")
+        
+
         dec_emb = torch.cat([e(y[..., i]) for i, e in enumerate(self.dec_embeddings)], 
                             dim=-1)
+        
+
+        ###
+        # print(f"Tensor going into embedding: {dec_emb.shape}")
+
         dec_emb = self.dec_emb_lin(dec_emb)
-        dec_emb = self.dec_pos(dec_emb)            
+        
+        ###
+        # print(f"Tensor going into positional encoding: {dec_emb.shape}")
+
+        
+        dec_emb = self.dec_pos(dec_emb, seq_pos=seq_pos)            
         
         # encoder
         h, skips = self.enc_block(enc_emb)
@@ -199,22 +219,34 @@ class Expressor(nn.Module):
                 attr_emb = self.attr_pos(attr_emb)
             zs = torch.cat([zs, attr_emb], dim=-1)
         
+        
+        ###
+        # print(f"Tensor going into dec_block: {dec_emb.shape}")
+
+        
         # decoder
         if self.is_training:
             out = self.dec_block(dec_emb, zs)
         else:
-            dec_emb = dec_emb.squeeze(1)
-            out, state = self.dec_block(dec_emb, zs, state=state)
-        
-        # type residual (optional)
-        if self.out_t_types[0] == 'meta':
-            if self.is_training:
-                # get type prediction before residual connection
-                y_type = self.proj[0](out)
 
-                # concatenate type residual
-                type_res = self.dec_embeddings[0](y[..., 0])
-                
+
+
+            # dec_emb = dec_emb.squeeze(1)
+            out, state = self.dec_block(dec_emb, zs, state=state)
+            # out.unsqueeze(1)
+        
+        ###
+        # print(f"After dec_block: {out.shape}")        
+
+
+        # type residual (optional)
+        if self.out_t_types[0] == 'type':
+            # get type prediction before residual connection
+            y_type_out = self.proj[0](out)
+            
+            # get type residual
+            if self.is_training:
+                type_res = self.dec_embeddings[0](y[..., 0]) 
             else:
                 type_res = self.dec_embeddings[0](y_type)
             
@@ -223,12 +255,16 @@ class Expressor(nn.Module):
             out = self.res_concat_type(out)
         
             # project word to tokens
-            tokens_out = [y_type] + [p(out) for p in self.proj[1:]]
+            tokens_out = [y_type_out] + [p(out) for p in self.proj[1:]]
         
         else:
             tokens_out = [p(out) for p in self.proj]
 
         # tokens out dims for each token in list: (batch, seq_len, voc_size)
+
+        ###
+        # print(f"First member of forward output list: {tokens_out[0].shape}")
+
 
         return tokens_out, state
 
@@ -239,7 +275,8 @@ class Expressor(nn.Module):
         """
         (b, s, t) = targets.size()
         assert len(pred_tokens) == t
-        assert (b, s) == pred_tokens[0].size()[0: 2]
+        assert (b, s) == pred_tokens[0].size()[0: 2], \
+            f"Pred tokens: {[*pred_tokens[0].shape[0: 2], len(pred_tokens)]}, Targets: {(b, s, t)}"
         assert b == 1
 
         criterion = nn.CrossEntropyLoss()
@@ -253,36 +290,57 @@ class Expressor(nn.Module):
         
         return overall_loss, losses    
     
-    def infer(self, x, target, y_init, attr=None):
+    def infer(self, x, target, n_init, attr=None):
         """
         Infer an output sequence from a given input and attribute
+
+        x: (b, n, d) input sequence of score,
+            compund words with and integer value for each token
+        target: (b, n, d) target output sequence with aligned token types, 
+            compund words with and integer value for each token
+        n_init: number of members of target (along n axis) to be used to initialise 
+            the autoregressive process
+        attr: (b, n, d') attribute tokens to be added to latent space
         """
         # initialise recurrent hidden state
         state = None
-        
+
         # initialise output sequence
-        output = []
-        output.append(y_init[0])
+        output = [torch.zeros((target.shape[0], target.shape[1] - n_init, d)) for 
+                  d in self.dec_vocab_sizes]
         
         # forward passes for initial sequence to initialise hidden states
-        for i, y in enumerate(y_init, 1):
+        for i in range(n_init):
+            # get decoder input
+            y = target[:, i, :]
             # get type of next output for skip connection
-            y_type = y[0]
-            # copy original y to output list
-            output.append(copy.deepcopy(y))
+            y_type = target[:, i + 1, 0]
             # forward pass
-            h = y_init[i - 1].unsqueeze(0)
-            h, state = self.forward(x, h, attr, state, y_type)
+            h, state = self.forward(x, y, attr, state, y_type, seq_pos=i)
+        
+        # add h to output (loop over token types)
+        for h_tok, out_tok in zip(h, output):
+            out_tok[:, 0, :] = h_tok
+        # convert logits to ints
+        h = self.logits_to_int(h)
         
         # infer rest of output sequence
-        for i in range(x.size()[-2] - len(y_init)):
+        for i in range(n_init + 1, target.shape[1]):
+            # get type of next output for skip connection
+            y_type = target[:, i, 0]
             # forward pass
-            y_type = target[len(y_init) + i]
-            h, state = self.forward(x, h, attr, state, y_type)
-            # copy to output list
-            output.append(copy.deepcopy(h))
-            # for putting back into model (convert token logits to int)
-            h = [torch.argmax(t, 2) for t in h]
+            h, state = self.forward(x, h, attr, state, y_type, seq_pos=i - 1)
+            # add h to output (loop over token types)
+            for h_tok, out_tok in zip(h, output):
+                out_tok[:, i - n_init, :] = h_tok
+            # convert logits to ints
+            h = self.logits_to_int(h)
+        
+        # check sequence length
+        assert output[0].shape[1] == x.shape[1] - n_init
         
         return output
     
+    @staticmethod
+    def logits_to_int(x):
+        return torch.stack([torch.argmax(t, -1) for t in x], dim=-1)
