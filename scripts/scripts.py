@@ -119,10 +119,9 @@ class SaverAgent():
                           step=None, 
                           cur_time=None):
         
-        if cur_time is None:
-            cur_time = time.time() - self.init_time
-        if step is None:
-            step = self.global_step
+            
+        cur_time = cur_time or time.time() - self.init_time
+        step = step or self.global_step
         
         # write msg (key, val, step, time)
         if isinstance(val, float):
@@ -138,8 +137,7 @@ class SaverAgent():
                          name='model',
                          just_weights=True):
         
-        if outdir is None:
-            outdir = self.save_dir
+        outdir = outdir or self.save_dir
         if just_weights:
             print(f' [*] saving model weights to {outdir}, name: {name}')
             torch.save(model.state_dict(), os.path.join(outdir, name + '_params.pt'))
@@ -175,8 +173,7 @@ class SaverAgent():
                          device='cpu', 
                          name='model.pt'):
         
-        if not path_exp:
-            path_exp = self.save_dir
+        path_exp = path_exp or self.save_dir
         path_pt = os.path.join(path_exp, name)
         print(' [*] restoring model from', path_pt)
         model = torch.load(path_pt, map_location=torch.device(device))
@@ -483,8 +480,10 @@ class Controller():
                     saver.add_summary_msg(f"Early stopping occurred after {epoch + 1} epochs")
                     print("Early stopping occurred")
                     break
-
-        print("Training complete")
+        
+        runtime = (time.time() - start_time)
+        print(f"Training completed in {int(runtime / 3600)} hrs,"
+              f"{int((runtime % 3600) / 60)} mins")
             
                 
     def evaluate(self, net,

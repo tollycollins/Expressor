@@ -349,7 +349,7 @@ def note_tokens(notes,
                 
             else:
                 duration = (note.end - note.start) / \
-                        (ext_beats[idx + 1] - ext_beats[idx])
+                           (ext_beats[idx + 1] - ext_beats[idx])
             
             # duration output(s)
             if split_duration:
@@ -414,9 +414,8 @@ def dynamics_tokens(notes_gp,
         # local mean velocity
         gp_range = (max(idx - mean_len // 2, 0), min((idx + mean_len // 2) + 1, num_gps))
         gp_slice = functools.reduce(lambda x, y: x + y, notes_gp[slice(*gp_range)])
-        velocities = [n.velocity for n in gp_slice]
         # if no notes in range
-        if not len(velocities):
+        if not len(velocities := [n.velocity for n in gp_slice]):
             mean_vel = prev_mean
         else:
             mean_vel = statistics.mean(velocities)
@@ -438,9 +437,8 @@ def dynamics_tokens(notes_gp,
             # local velocity band
             gp_range = (max(idx - band_win // 2, 0), min((idx + band_win // 2) + 1, num_gps))
             gp_slice = functools.reduce(lambda x, y: x + y, notes_gp[slice(*gp_range)])
-            velocities = [n.velocity for n in gp_slice]
             # if no notes in range
-            if not len(velocities):
+            if not len(velocities := [n.velocity for n in gp_slice]):
                 median_vel = prev_median
             else:
                 median_vel = statistics.median(velocities)
