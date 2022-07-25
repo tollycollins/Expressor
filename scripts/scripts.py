@@ -350,7 +350,8 @@ class Controller():
             swa_scheduler = SWALR(optimizer, swa_lr=swa_init)
 
         # saver agent
-        saver = SaverAgent(self.path, save_name=save_name, filemode=log_mode)
+        saver = SaverAgent(self.path.replace('\\', '/'), save_name=save_name, 
+                           filemode=log_mode)
         saver.add_summary_msg(' > # parameters: {n_params}')
         saver.save_params(in_pos=in_pos, attr_pos=attr_pos, out_pos=out_pos,
                           model_args=[in_types, attr_types, out_types, 
@@ -517,6 +518,7 @@ class Controller():
                 
                 # forward pass
                 y_pred = net.infer(enc_in, targets, n_init, attr_in)
+                y_pred = [y.to(device) for y in y_pred]
                 
                 # calculate losses
                 total_loss, losses = net.compute_loss(y_pred, targets[:, n_init:, :])                               
@@ -552,7 +554,8 @@ class Controller():
         
         # get Saver agent
         head, tail = os.path.split(os.path.normpath(dir_name))
-        saver = SaverAgent(head, save_name=tail, exp_dir='tests', filemode=filemode)
+        saver = SaverAgent(head.replace('\\', '/'), save_name=tail, exp_dir='tests', 
+                           filemode=filemode)
         
         # load model
         model = saver.load_model()

@@ -104,16 +104,20 @@ if __name__ == '__main__':
         [3]: number of epochs for training
     """
     
-    dir_name = sys.argv[1]
+    dir_name = os.path.join('saves', sys.argv[1])
     train_name = sys.argv[2]
     epochs = int(sys.argv[3])
+    
+    # deal with Google Colab
+    if os.getcwd() == '/content/Expressor':
+        dir_name = os.path.join('../../gdrive/MyDrive/QMUL/Dissertation', dir_name)
 
     # load controller
     try:
-        with open(os.path.join('saves/' + dir_name, 'controller.pkl'), 'rb') as f:
+        with open(os.path.join(dir_name, 'controller.pkl'), 'rb') as f:
             controller = pickle.load(f)
     except FileNotFoundError:
-        dir_path = os.path.join('saves', dir_name)
+        dir_path = os.path.join(dir_name).replace('\\', '/')
         controller = Controller(dir_path, os.path.join(dir_path, 'words'), 
                                 **params[dir_name]['init'])
         
