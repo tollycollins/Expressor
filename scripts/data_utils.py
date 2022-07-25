@@ -59,7 +59,7 @@ class WordDataset(Dataset):
         """
         super().__init__()
         
-        with open(os.path.join(data_base, 'words.xz'), 'rb') as f:
+        with open(os.path.join(data_base, 'words.xz').replace('\\', '/'), 'rb') as f:
             data = compress_pickle.load(f)
         
         # filter out desired tokens for words, and filter out only desired tracks      

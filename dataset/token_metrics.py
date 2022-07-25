@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 
 
-def get_val_frequencies(tokens_root, t_type, verbose=True, print_freqs=False,
+def get_unique_vals(tokens_root, t_type, verbose=True, print_freqs=False,
                         by_track=False):
     """
     returns:
@@ -31,7 +31,7 @@ def get_val_frequencies(tokens_root, t_type, verbose=True, print_freqs=False,
                 for token in token_data[t_type]:
                     try:
                         t = token[1]
-                    except IndexError:
+                    except TypeError:
                         t = token
                     if t in unique_vals:
                         unique_vals[t] += 1
@@ -67,6 +67,20 @@ def get_val_frequencies(tokens_root, t_type, verbose=True, print_freqs=False,
                 print(f"{k}: {v}")
     
     return dict(sorted(all_unique_vals.items()))
+
+
+def vocab_lens(tokens_root, t_types):
+    vocab = {}
+    for t_type in t_types:
+        unique_vals = get_unique_vals(tokens_root, t_type)
+        vocab[t_type] = len(unique_vals)
+    
+    # print
+    print("Vocabulary lengths: ")
+    for k, v in vocab.items():
+        print(f"{k}: {v}")
+    
+    return vocab
 
 
 def histogram(data, save_path, name):
@@ -135,18 +149,22 @@ if __name__ == '__main__':
     #                 'note_vel_band', 'note_rel_vel', 'articulation', 'timing_dev', 
     #                 'keys', 'harmonic_quality']
     
-    tokens_meta = ['timing_dev']
+    tokens_meta = ['ibi', 'local_vel_mean', 'artic_whole', 'artic_fract', 
+      'timing_dev_whole', 'timing_dev_fract', 'note_vel_diff']
     
     if metric == 'histogram':
         for t_type in tokens_meta:
-            unique_vals = get_val_frequencies(tokens_path, t_type=t_type)
+            unique_vals = get_unique_vals(tokens_path, t_type=t_type)
             histogram(unique_vals, save_path, t_type)
 
     if metric == 'print_unique_tokens':
         for t_type in tokens_meta:
-            get_val_frequencies(tokens_path, t_type=t_type, print_freqs=True)   
+            get_unique_vals(tokens_path, t_type=t_type, print_freqs=True)   
 
     if metric == 'print_unique_tokens_by_track':
         for t_type in tokens_meta:
-            get_val_frequencies(tokens_path, t_type=t_type, print_freqs=True, by_track=True) 
+            get_unique_vals(tokens_path, t_type=t_type, print_freqs=True, by_track=True) 
+    
+    if metric == 'vocab_lens':
+        vocab_lens(tokens_path, tokens_meta)
 

@@ -312,8 +312,9 @@ class Controller():
                                **model_kwargs)
         make_mirror(model, eval_model)
         
-        print("Eval model: ")
-        print(eval_model)
+        if print_model:
+            print("Eval model: ")
+            print(eval_model)
 
         n_params = network_params(model)
         print(f"Model parameters: {n_params}")
