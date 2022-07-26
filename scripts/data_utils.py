@@ -4,6 +4,7 @@ Dataset class
 """
 import os
 import compress_pickle
+import math
 
 import torch
 from torch.utils.data import Dataset, random_split
@@ -52,42 +53,69 @@ class WordDataset(Dataset):
                  in_types,
                  attr_types,
                  out_types,
+                 batch_size=1,
                  max_len=None,
                  pitch_aug_range=None):
         """
         data: (in, attr, out) - [seq(words)]
         """
         super().__init__()
+    
+        self.max_len = max_len
+        # self.pitch_aug_range = pitch_aug_range
+        self.batch_size = batch_size
         
         with open(os.path.join(data_base, 'words.xz').replace('\\', '/'), 'rb') as f:
             data = compress_pickle.load(f)
         
         # filter out desired tokens for words, and filter out only desired tracks      
         in_pos = sorted([meta['in_pos'][t] for t in in_types])
-        # if 'meta' in meta['in_pos']:
-        #     in_pos = [0] + in_pos
-        self.in_data = [[[word[i] for i in in_pos] for word in track] for \
-                        idx, track in enumerate(data[0]) if idx in t_idxs]
-        
-        self.attr_data = None
+        out_pos = sorted([meta['out_pos'][t] for t in out_types])
         if len(attr_types):
             attr_pos = sorted([meta['attr_pos'][t] for t in attr_types])
-            # if 'meta' in meta['attr_pos']:
-            #     attr_pos = [0] + attr_pos
-            self.attr_data = [[[word[i] for i in attr_pos] for word in track] for \
-                            idx, track in enumerate(data[1]) if idx in t_idxs]
-
-        out_pos = sorted([meta['out_pos'][t] for t in out_types])
-        # if 'meta' in meta['out_pos']:
-        #     out_pos = [0] + out_pos
-        self.out_data = [[[word[i] for i in out_pos] for word in track] for \
-                         idx, track in enumerate(data[2]) if idx in t_idxs]
-
-        self.names = [meta['words_info']['names'][i] for i in t_idxs]
         
-        self.length = len(self.in_data)
-        if max_len:
-            self.length = min(self.length, max_len)
+        if batch_size == 1:
+            self.in_data = [[[word[i] for i in in_pos] for word in track] for \
+                            idx, track in enumerate(data[0]) if idx in t_idxs]
+        
+            self.attr_data = None
+            if len(attr_types):
+                attr_pos = sorted([meta['attr_pos'][t] for t in attr_types])
+                self.attr_data = [[[word[i] for i in attr_pos] for word in track] for \
+                                  idx, track in enumerate(data[1]) if idx in t_idxs]
+            
+            self.out_data = [[[word[i] for i in out_pos] for word in track] for \
+                             idx, track in enumerate(data[2]) if idx in t_idxs]
+            
+            self.names = [meta['words_info']['names'][i] for i in t_idxs]
+
+            self.length = min(len(self.in_data), max_len or 1100)
+
+        else:
+            self.length = min(math.ceil(len(t_idxs) / batch_size), max_len or 1100)
+
+            self.in_data = []
+            self.out_data = []
+            self.attr_data = [] if len(attr_types) else None
+            self.names = []
+
+            for nb in range(self.length):
+                idxs = t_idxs[nb * batch_size: min(len(t_idxs), nb * (batch_size + 1))]
+
+                in_d = [torch.as_tensor([[word[i] for i in in_pos] for 
+                        word in data[0][idx]]) for idx in idxs]
+                self.in_data.append(self.make_batch(in_d))
+            
+                out_d = [torch.as_tensor([[word[i] for i in out_pos] for 
+                         word in data[2][idx]]) for idx in idxs]
+                self.out_data.append(self.make_batch(out_d))
+                
+                if len(attr_types):
+                    attr_d = [torch.as_tensor([[word[i] for i in attr_pos] for 
+                            word in data[1][idx]]) for idx in idxs]
+                    self.attr_data.append(self.make_batch(attr_d))
+
+                self.names.append([meta['words_info']['names'][i] for i in idxs])
             
         print(f"Dataset length: {self.length}")
         
@@ -95,17 +123,33 @@ class WordDataset(Dataset):
         return self.length
     
     def __getitem__(self, index):
+
         data = {
-            'in': torch.as_tensor(self.in_data[index]),
-            'out': torch.as_tensor(self.out_data[index]),
+            'in': self.in_data[index],
+            'out': self.out_data[index],
             'name': self.names[index]
         }
 
         if self.attr_data is not None:
-            data['attr'] = torch.as_tensor(self.attr_data[index])
+            data['attr'] = self.attr_data[index]
         
         # optional augmentation
         
         return data
+    
+    def make_batch(self, data):
         
+        (b, s, w) = data[0].shape
+        lengths = [d.shape[1] for d in data]
+        longest = max(lengths)
+        full_len = min(longest, 20000 or self.max_len)
+                
+        out = torch.zeros((b, full_len, w))
+        for idx, (dt, length) in enumerate(zip(data, lengths)):
+            if length > full_len:
+                out[idx, ...] = dt[:, :full_len, :]
+            else:
+                out[idx, :length] = dt
+                
+        return out
         

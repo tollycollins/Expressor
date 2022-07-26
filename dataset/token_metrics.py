@@ -115,17 +115,14 @@ def words_lens(words_meta_path):
     """
     seq_lens = dict()
     
-    with open(words_meta_path, 'wb') as f:
-        data = pickle.load(f, 'rb')
+    with open(words_meta_path, 'rb') as f:
+        data = pickle.load(f)
     
-    max_len = 0
-    for name, v in data[2]['words_info'].items():
-            length = v['num_words']
+    lengths = data[2]['words_info']['lengths']
+    for name, length in zip(data[2]['words_info']['names'], lengths):
             seq_lens[name] = length
-            if length > max_len:
-                max_len = length
     
-    return seq_lens, max_len
+    return seq_lens, sorted(lengths), max(lengths)
 
 
 if __name__ == '__main__':
@@ -134,10 +131,11 @@ if __name__ == '__main__':
         t1
     """
     
-    tokens_name = sys.argv[1]
+    name = sys.argv[1]
     metric  = sys.argv[2]
 
-    tokens_path = os.path.join("dataset/tokens", tokens_name)
+    tokens_path = os.path.join("dataset/tokens", name)
+    words_meta_path = os.path.join("saves", name, "words/metadata.pkl")
     
     
     save_path = os.path.join(tokens_path, 'visualisations')
@@ -166,4 +164,8 @@ if __name__ == '__main__':
     
     if metric == 'vocab_lens':
         vocab_lens(tokens_path, tokens_meta)
+
+    if metric == 'words_lens':
+        named_len, lens, max_len = words_lens(words_meta_path)
+        print(max_len)
 

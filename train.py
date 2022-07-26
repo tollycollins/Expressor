@@ -147,11 +147,17 @@ params = {
                 "max_train_size": 3,
                 "max_eval_size": 1,
                 "print_model": False
-}
+            }
         },
         'small': {
             'searches': {
-                'def': {}
+                'def': {},
+                'lrs': {
+                  'init_lr': [1e-3, 3e-4, 1e-4, 3e-5],
+                  'min_lr': [1e-6, 1e-6, 1e-6, 1e-7],
+                  'val_freq': [0, 0, 0, 0],
+                  'max_train_size': [128, 128, 128, 128]
+                 }
             },
             'kwargs': {
                 "batch_size": 1,
@@ -165,8 +171,8 @@ params = {
                 "out_types": ['type', 'ibi', 'local_vel_mean', 'artic', 
                               'timing_dev', 'note_vel_diff'],
                 "model_args": [
-                        [2, 3, 1, 1, 4, 2, 2], 32, 6, 4, 128, 
-                        [2, 1, 1, 4, 4, 4], 64, 6, 4, 256
+                        [3, 4, 2, 2, 8, 4, 4], 64, 6, 4, 256, 
+                        [3, 4, 4, 8, 8, 8], 64, 6, 4, 256
                     ],
                 "model_kwargs": {
                         "attr_emb_dims": [],
@@ -194,7 +200,7 @@ params = {
                 "save_cond": 'val_loss',
                 "early_stop": 50,
                 "max_train_size": None,
-                "max_eval_size": 50,
+                "max_eval_size": 32,
                 "print_model": False
             }
         }
@@ -224,7 +230,7 @@ if __name__ == '__main__':
     # deal with Google Colab
     save_dir_name = os.path.join('saves', dir_name)
     if os.getcwd() == '/content/Expressor':
-        save_dir_name = os.path.join('../gdrive/MyDrive/QMUL/Dissertation', dir_name)
+        save_dir_name = os.path.join('../gdrive/MyDrive/QMUL/Dissertation', save_dir_name)
     
     # load controller
     try:

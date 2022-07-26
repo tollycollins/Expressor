@@ -276,14 +276,16 @@ class Controller():
         train_loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
                                                          self.train_ind,
                                                          in_types, attr_types, out_types,
-                                                         max_len=max_train_size), 
-                                  batch_size=batch_size, pin_memory=True, shuffle=True)
+                                                         max_len=max_train_size,
+                                                         batch_size=batch_size), 
+                                  batch_size=1, pin_memory=True, shuffle=True)
         print("Obtaining validation data ...")
         val_loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
                                                        self.val_ind,
                                                        in_types, attr_types, out_types,
-                                                       max_len=max_eval_size),
-                                batch_size=batch_size, pin_memory=True, shuffle=True)
+                                                       max_len=max_eval_size,
+                                                       batch_size=batch_size),
+                                batch_size=1, pin_memory=True, shuffle=True)
         
         # get positions of tokens in words
         in_pos, attr_pos, out_pos = self.new_positions((in_types, attr_types, out_types))
@@ -389,10 +391,12 @@ class Controller():
         
             for idx, data in enumerate(train_loader, 1):
                 
+                
                 # unpack data
                 enc_in = data['in'].to(device)
                 attr_in = data['attr'].to(device) if 'attr' in data else None
                 targets = data['out'].to(device)
+
                 
                 # forward pass
                 tokens_out, _ = model(enc_in, targets, attr_in, state=None)
@@ -419,13 +423,18 @@ class Controller():
             
             # update learning rate
             l_rate = optimizer.param_groups[0]['lr']
-            if swa_start is not None and epoch > (swa_time := epochs * swa_start):
-                if swa_model is None:
-                    print("\n>> Switching from SGD to SWA ...\n")
-                    swa_model = AveragedModel(model)
+            if swa_start is not None:
+                swa_time = epochs * swa_start
+                if epoch > swa_time:
+                    if swa_model is None:
+                        print("\n>> Switching from SGD to SWA ...\n")
+                        swa_model = AveragedModel(model)
+                    else:
+                        swa_model.update_parameters(model)
+                        swa_scheduler.step()  
                 else:
-                    swa_model.update_parameters(model)
-                    swa_scheduler.step()  
+                    for scheduler in schedulers:
+                        scheduler.step()
             else:
                 for scheduler in schedulers:
                     scheduler.step()
@@ -446,8 +455,8 @@ class Controller():
                 saver.add_summary(f"{t_type} loss", loss)
             
             # validation
-            if (swa_start is not None and epoch <= swa_time) \
-                and (epoch + 1) % val_freq == 0 or epoch + 1 == epochs:
+            if val_freq and (swa_start is None or swa_start is not None and epoch <= swa_time) \
+                and ((epoch + 1) % val_freq == 0 or epoch + 1 == epochs):
                 
                 # get time for logging
                 eval_start_time = time.time()              
@@ -627,7 +636,8 @@ class Controller():
 
         elif search_type == 'zip':
             # loop over runs
-            for run, changes in enumerate(p := zip(*search_changes.values())):
+            p = zip(*search_changes.values())
+            for run, changes in enumerate(p):
                 # make changes to train() parameters
                 print(f"*** Run {run}/{len(list(p))}: ")
                 for kw, change in zip(search_changes.keys(), changes):
