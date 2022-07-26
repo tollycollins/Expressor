@@ -262,7 +262,7 @@ class Controller():
                     restart_anneal=True,
                     sch_Tmult=1,
                     sch_warm=0.05,
-                    swa_start=0.7,
+                    swa_start=None,
                     swa_init=0.001,
                     n_eval_init=1,
                     save_cond='loss',
@@ -347,8 +347,8 @@ class Controller():
         
         # stochastic weight averaging
         swa_model = None
-        if swa_start:
-            swa_scheduler = SWALR(optimizer, swa_lr=swa_init)
+        if swa_start is not None:
+            swa_scheduler = SWALR(optimizer, swa_lr=swa_init, anneal_strategy='cos')
 
         # saver agent
         saver = SaverAgent(self.path.replace('\\', '/'), save_name=save_name, 
@@ -370,9 +370,12 @@ class Controller():
             grad_acc_freq = 1        
         
         print("Starting training ...")
+        training_start_time = time.time()
 
         # training loop        
         for epoch in range(epochs):
+
+            saver.global_step_increment()
             
             # record time for logging
             start_time = time.time()
@@ -385,8 +388,6 @@ class Controller():
             optimizer.zero_grad()
         
             for idx, data in enumerate(train_loader, 1):
-                
-                saver.global_step_increment()
                 
                 # unpack data
                 enc_in = data['in'].to(device)
@@ -415,13 +416,12 @@ class Controller():
                         clip_grad_norm_(model.parameters(), max_grad_norm)
                     optimizer.step()
                     optimizer.zero_grad()
-                
-                # log
-                saver.add_summary('batch loss', total_loss.item())
             
             # update learning rate
-            if epoch > epochs * swa_start:
+            l_rate = optimizer.param_groups[0]['lr']
+            if swa_start is not None and epoch > (swa_time := epochs * swa_start):
                 if swa_model is None:
+                    print("\n>> Switching from SGD to SWA ...\n")
                     swa_model = AveragedModel(model)
                 else:
                     swa_model.update_parameters(model)
@@ -435,27 +435,28 @@ class Controller():
             cum_loss /= len(train_loader)
             cum_losses /= len(train_loader)
             print(f"----- epoch: {epoch + 1}/{epochs} | Loss: {cum_loss:08f}" \
-                  f"| time: {runtime:03f} -----")
+                  f" Learning rate: {l_rate} | time: {runtime:03f} -----")
             print('    > ', ' | '.join(f"{t}: {l:06f}" for t, l in zip(out_pos.values(), 
                                                                        cum_losses)))
             
             # log training info
-            saver.add_summary('epoch loss', cum_loss)
+            saver.add_summary('train loss', cum_loss)
+            saver.add_summary('learning rate', l_rate)
             for t_type, loss in zip(out_pos.values(), cum_losses):
                 saver.add_summary(f"{t_type} loss", loss)
             
             # validation
-            if (epoch + 1) % val_freq == 0 or epoch + 1 == epochs:
+            if (swa_start is not None and epoch <= swa_time) \
+                and (epoch + 1) % val_freq == 0 or epoch + 1 == epochs:
                 
                 # get time for logging
-                eval_start_time = time.time()
-                
-                # get evaluation metrics
+                eval_start_time = time.time()              
+
                 metrics = self.evaluate(eval_model,
                                         device=device,
                                         loader=val_loader,
                                         n_init=n_eval_init)
-
+                
                 # ensure model is in training mode
                 model.train()
                 
@@ -475,15 +476,19 @@ class Controller():
                     save, es_ctr = saver.check_save(metrics['loss'], 'lower')
                 
                     if save:
-                        saver.save_model(model, optimizer)
+                        saver.save_model(model, optimizer, just_weights=True)
                 
                 # early stopping
                 if early_stop and es_ctr > early_stop / val_freq:
                     saver.add_summary_msg(f"Early stopping occurred after {epoch + 1} epochs")
                     print("Early stopping occurred")
                     break
+
+        # save SWA model
+        if swa_start and epoch > swa_time:
+            saver.save_model(swa_model, name='swa_model', just_weights=True)
         
-        runtime = (time.time() - start_time)
+        runtime = (time.time() - training_start_time)
         print(f"Training completed in {int(runtime / 3600)} hrs,"
               f"{int((runtime % 3600) / 60)} mins")
             
@@ -511,11 +516,6 @@ class Controller():
                 attr_in = data['attr'].to(device) if 'attr' in data else None
                 targets = data['out'].to(device)
                 name = data['name']
-                
-                ###
-                # print(f"n_eval_init: {n_init}")
-                # print(f"targets shape: {targets.shape}")
-                # print(f"y_init shape: {y_init.shape}")
                 
                 # forward pass
                 y_pred = net.infer(enc_in, targets, n_init, attr_in)
@@ -611,10 +611,38 @@ class Controller():
         return out
 
     
-    def hyper_search(self):
-        ...
+    def hyper_search(self, kwargs,
+                           search_changes,
+                           epochs,
+                           search_type='zip'):
+        """
+        Conduct a hyperparameter seach
+        args:
+            kwargs: dict of kwargs for self.
+            search_changes: dict of alterations to kwargs
+        """
+        # no need for search if epochs is an int
+        if not len(search_changes):
+            self.train(epochs, **kwargs)
 
-
+        elif search_type == 'zip':
+            # loop over runs
+            for run, changes in enumerate(p := zip(*search_changes.values())):
+                # make changes to train() parameters
+                print(f"*** Run {run}/{len(list(p))}: ")
+                for kw, change in zip(search_changes.keys(), changes):
+                    if kw == 'save_name':
+                        kwargs[kw] += '_' + str(change)
+                    elif kw == 'model_kwargs':
+                        for k, v in change.items():
+                            kwargs[kw][k] = v
+                    else:
+                        kwargs[kw] = change
+                    print(f"\t{kw}: {change}")
+                # run
+                self.train(epochs, **kwargs)
+    
+    
     def render(self):
         ...
 

@@ -131,3 +131,8 @@ dmypy.json
 # Extras
 *tempCodeRunnerFile.py
 # dataset/asap-dataset/
+# outputs
+model_opt.pt
+model_params.pt
+swa_model_params.pt
+

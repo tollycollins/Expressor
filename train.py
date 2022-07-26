@@ -45,6 +45,19 @@ params = {
             "split_mode": 'random'
         },
         'test': {
+            'searches': {
+                'def': {},
+                'swa_test': {
+                    'val_freq': [3, 3],
+                    'model_args': [
+                        [[10, 10, 10, 10, 10, 10, 10], 64, 3, 2, 128, 
+                         [10, 30, 10, 10, 10, 10, 10, 10], 64, 3, 2, 128],
+                        [[4, 4, 4, 4, 4, 4, 4], 8, 2, 1, 16, 
+                         [4, 4, 4, 4, 4, 4, 4, 4], 8, 2, 1, 16]
+                    ],
+                    'print_model': [False, False]
+                }
+            },
             'kwargs': {
                 "batch_size": 1,
                 "save_name": 'test',
@@ -80,7 +93,7 @@ params = {
                 "restart_anneal": True,
                 "sch_Tmult": 1,
                 "sch_warm": 0.05,
-                "swa_start": 0.7,
+                "swa_start": None,
                 "swa_init": 0.001,
                 "n_eval_init": 1,
                 "save_cond": 'val_loss',
@@ -126,7 +139,7 @@ params = {
                 "restart_anneal": True,
                 "sch_Tmult": 1,
                 "sch_warm": 0.05,
-                "swa_start": 0.7,
+                "swa_start": None,
                 "swa_init": 0.001,
                 "n_eval_init": 1,
                 "save_cond": 'val_loss',
@@ -136,10 +149,13 @@ params = {
                 "print_model": False
 }
         },
-        'baseline_small': {
+        'small': {
+            'searches': {
+                'def': {}
+            },
             'kwargs': {
                 "batch_size": 1,
-                "save_name": 'baseline',
+                "save_name": 'small',
                 "log_mode": 'w',
                 "grad_acc_freq": None,
                 "val_freq": 8,
@@ -172,13 +188,13 @@ params = {
                 "restart_anneal": True,
                 "sch_Tmult": 1,
                 "sch_warm": 0.05,
-                "swa_start": 0.7,
+                "swa_start": None,
                 "swa_init": 0.001,
                 "n_eval_init": 1,
                 "save_cond": 'val_loss',
                 "early_stop": 50,
-                "max_train_size": 3,
-                "max_eval_size": 1,
+                "max_train_size": None,
+                "max_eval_size": 50,
                 "print_model": False
             }
         }
@@ -198,10 +214,15 @@ if __name__ == '__main__':
     
     dir_name = sys.argv[1]
     train_name = sys.argv[2]
-    epochs = int(sys.argv[3])
+    search_name = sys.argv[3]
+    epochs = int(sys.argv[4])
+    try:
+        search_type = sys.argv[5]
+    except IndexError:
+        search_type = 'zip'
     
     # deal with Google Colab
-    save_dir_name = os.path.join('saves', sys.argv[1])
+    save_dir_name = os.path.join('saves', dir_name)
     if os.getcwd() == '/content/Expressor':
         save_dir_name = os.path.join('../gdrive/MyDrive/QMUL/Dissertation', dir_name)
     
@@ -213,7 +234,11 @@ if __name__ == '__main__':
         controller = Controller(save_dir_name.replace('\\', '/'), 
                                 os.path.join(save_dir_name, 'words').replace('\\', '/'), 
                                 **params[dir_name]['init'])
-        
     
-    controller.train(epochs, **params[dir_name][train_name]['kwargs'])
+    # train
+    kwargs = params[dir_name][train_name]['kwargs']
+    kwargs['save_name'] = train_name + '_' + search_name
+    changes = params[dir_name][train_name]['searches'][search_name]
+
+    controller.hyper_search(kwargs, changes, epochs, search_type)
     

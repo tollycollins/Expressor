@@ -7,8 +7,6 @@ References:
     https://fast-transformers.github.io/api_docs/fast_transformers/transformers.html
     https://github.com/YatingMusic/MuseMorphose/blob/main/model/musemorphose.py
 """
-import copy
-
 import numpy as np
 
 import torch
@@ -344,3 +342,4 @@ class Expressor(nn.Module):
     @staticmethod
     def logits_to_int(x):
         return torch.stack([torch.argmax(t, -1) for t in x], dim=-1)
+
