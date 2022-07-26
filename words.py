@@ -18,7 +18,8 @@ params = {
             'attr_metric_t_types': [],
             'attr_note_t_types': [],
             'out_metric_t_types': ['ibi', 'local_vel_mean'],
-            'out_note_t_types': ['artic_whole', 'artic_fract', 'timing_dev_whole', 
+            'out_note_t_types': ['artic', 'artic_whole', 'artic_fract', 
+                                 'timing_dev', 'timing_dev_whole', 
                                  'timing_dev_fract', 'note_vel_diff']
         }
     }

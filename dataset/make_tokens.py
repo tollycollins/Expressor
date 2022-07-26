@@ -9,6 +9,7 @@ import pickle
 import itertools
 import utils
 import json
+import sys
 
 import pretty_midi
 
@@ -305,15 +306,15 @@ if __name__ == '__main__':
         'note_vel_band': {'bands': default_dynamics_bands, 'band_hysteresis': (5, 5)},
         'note_rel_vel': {'note_std_quant': 0.2, 'note_std_bounds': (-15, 15)},
         'note_vel_diff': {},
-        'artic': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timimng_calc_type, 
-                  'last_note_max_hold': default_last_note_max_hold},
-        'artic_whole': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timimng_calc_type,
+        'artic': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timing_calc_type, 
+                  'last_note_max_hold': default_last_note_max_hold, 'large_values_quant': default_lv_quant},
+        'artic_whole': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timing_calc_type,
                         'last_note_max_hold': default_last_note_max_hold},
-        'artic_fract': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timimng_calc_type, 
+        'artic_fract': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timing_calc_type, 
                         'last_note_max_hold': default_last_note_max_hold},
         'timing_dev': {'dev_quant': default_dev_quant, 'dev_lims': default_dev_lims, 'cubic_len': default_cubic_len, 
                        'beat_in_beat_weight': default_beat_in_beat_weight, 'non_beat_in_beat_weight': default_non_beat_in_beat_weight,
-                       'calc_type': default_timing_calc_type},
+                       'calc_type': default_timing_calc_type, 'large_values_quant': default_lv_quant},
         'timing_dev_whole': {'dev_quant': default_dev_quant, 'dev_lims': default_dev_lims, 'cubic_len': default_cubic_len, 
                              'beat_in_beat_weight': default_beat_in_beat_weight, 'non_beat_in_beat_weight': default_non_beat_in_beat_weight,
                              'calc_type': default_timing_calc_type},
@@ -324,6 +325,8 @@ if __name__ == '__main__':
         'harmonic_quality': {'reduce': default_harmonic_reduce, 'extra_reduce': default_harmonic_extra_reduce, 'conti': default_harmonic_conti},
         'rubato': {}
     """
+    save_name = sys.argv[1]
+    
     default_tempo_lower_bounds = [5, 45, 85, 120, 150]
     default_tempo_hysteresis = [5, 5]
     default_tempo_allow_zero = False
@@ -335,19 +338,20 @@ if __name__ == '__main__':
     default_dynamics_band_hysteresis = (5, 5)
     
     default_artic_quant = 0.05
-    default_artic_lims = None
+    default_artic_lims = (-12, 12)
     default_timing_calc_type = 'linear'
     default_dev_quant = 0.01
-    default_dev_lims = None
+    default_dev_lims = (-12, 12)
     default_cubic_len = 6
     default_beat_in_beat_weight = 1
     default_non_beat_in_beat_weight = 2
-    default_last_note_max_hold = 24
-    
+    default_last_note_max_hold = 12
+    default_lv_quant = 0.2
     default_harmonic_reduce = False
     default_harmonic_extra_reduce = False
     default_harmonic_conti = True
     
-    create_training_data({'ibi': {'ibi_quant': 0.02}}, 
-                         'dataset/tokens/t1', align_range=0.25, beat_eps=1e-2)
+    create_training_data({'artic': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timing_calc_type, 
+                          'last_note_max_hold': default_last_note_max_hold, 'large_values_quant': default_lv_quant}},
+                         os.path.join('dataset/tokens', save_name), align_range=0.25, beat_eps=1e-2)
 

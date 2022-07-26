@@ -209,7 +209,8 @@ def compute_words(tokens_root,
                                     eos_tokens, bar_tokens, type_tokens, 
                                     out_metric_t_types, out_note_t_types)
             
-            assert len(in_words) == len(out_words)
+            assert len(in_words) == len(out_words), (f"In: {len(in_words)}, out: {len(out_words)}, "  
+                                                     f"file: {entry}")
             
             # track name
             _, tail = os.path.split(entry)

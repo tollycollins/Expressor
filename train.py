@@ -39,7 +39,7 @@ from scripts.scripts import Controller
 params = {
     'baseline_t1': {
         'init': {
-            "val_ratio": 0.2,
+            "val_ratio": 0.15,
             "test_ratio": 0.1,
             "seed": 1,
             "split_mode": 'random'
@@ -162,11 +162,11 @@ params = {
                 "in_types": ['type', 'beat', 'tempo_band', 'pitch', 'start', 'dur_full', 
                              'dur_fract'],
                 "attr_types": [],
-                "out_types": ['type', 'ibi', 'local_vel_mean', 'artic_whole', 'artic_fract', 
-                              'timing_dev_whole', 'timing_dev_fract', 'note_vel_diff'],
+                "out_types": ['type', 'ibi', 'local_vel_mean', 'artic', 
+                              'timing_dev', 'note_vel_diff'],
                 "model_args": [
-                        [4, 32, 8, 64, 64, 32, 64], 256, 8, 4, 1024, 
-                        [4, 128, 64, 128, 16, 16, 64, 128], 256, 8, 4, 1024
+                        [2, 3, 1, 1, 4, 2, 2], 32, 6, 4, 128, 
+                        [2, 1, 1, 4, 4, 4], 64, 6, 4, 256
                     ],
                 "model_kwargs": {
                         "attr_emb_dims": [],

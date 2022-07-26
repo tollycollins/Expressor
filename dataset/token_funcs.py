@@ -53,6 +53,7 @@ from decimal import Decimal
 import statistics
 import collections
 import functools
+import copy
 
 import pretty_midi
 import miditoolkit
@@ -482,14 +483,15 @@ def timing_labels(notes_score_gp,
                   beats_score,
                   beats_perf,
                   artic_quant=0.05,
-                  artic_lims=None,
+                  artic_lims=(-12, 12),
                   dev_quant=0.01, 
-                  dev_lims=None,
+                  dev_lims=(-12, 12),
                   cubic_len=6,
                   beat_in_beat_weight=1,
                   non_beat_in_beat_weight=2,
                   calc_type='linear',
-                  last_note_max_hold=24):
+                  last_note_max_hold=24,
+                  large_values_quant=0.2):
     """
     args:
         notes_score: notes from score, aligned by list position with notes_perf
@@ -626,7 +628,17 @@ def timing_labels(notes_score_gp,
                 if dev_lims is not None:
                     dev = dev_lims[0] if dev < dev_lims[0] else dev
                     dev = dev_lims[1] if dev > dev_lims[1] else dev
-                dev_out[beat].append((time, utils.quantize(dev, dev_quant)))
+                
+                # quantize appropriately
+                if large_values_quant:
+                    if dev > 1 or dev < -1:
+                        quant_dev = utils.quantize(dev, large_values_quant)
+                    else:
+                        quant_dev = utils.quantize(dev, dev_quant)
+                    dev_out[beat].append((time, quant_dev))            
+                
+                else:
+                    dev_out[beat].append((time, utils.quantize(dev, dev_quant)))
     
     artic_whole_out = collections.defaultdict(list)
     artic_fract_out = collections.defaultdict(list)
@@ -679,13 +691,24 @@ def timing_labels(notes_score_gp,
                         artic = artic_lims[0] if artic < artic_lims[0] else artic
                         artic = artic_lims[1] if artic > artic_lims[1] else artic
                 else: 
-                    artic = artic_quant            
+                    artic = artic_quant      
     
                 # get equivalent score time for reference
                 time = notes_score_gp[beat][idx].start
+
+                # quantize appropriately and add to output
+                if large_values_quant:
+                    if artic > 2 or artic < -2:
+                        quant_artic = utils.quantize(artic, 1)
+                    elif artic > 1 or artic < -1:
+                        quant_artic = utils.quantize(artic, large_values_quant)
+                    else:
+                        quant_artic = utils.quantize(artic, artic_quant)
+                    artic_out[beat].append((time, quant_artic))  
+                else:
+                    artic_out[beat].append((time, utils.quantize(artic, artic_quant)))
                             
-                # add to output
-                artic_out[beat].append((time, utils.quantize(artic, artic_quant)))
+                # add to split outputs
                 artic_whole_out[beat].append((time, int(artic)))
                 artic_fract_out[beat].append((time, utils.quantize(artic % 1, artic_quant)))
 
@@ -704,7 +727,17 @@ def timing_labels(notes_score_gp,
                     dev = dev_lims[0] if dev < dev_lims[0] else dev
                     dev = dev_lims[1] if dev > dev_lims[1] else dev
 
-                dev_out[beat].append((time, utils.quantize(dev, dev_quant)))             
+                # quantize appropriately
+                if large_values_quant:
+                    if dev > 1 or dev < -1:
+                        quant_dev = utils.quantize(dev, large_values_quant)
+                    else:
+                        quant_dev = utils.quantize(dev, dev_quant)
+                    dev_out[beat].append((time, quant_dev))   
+                
+                else: 
+                    dev_out[beat].append((time, utils.quantize(dev, dev_quant)))      
+
                 dev_whole_out[beat].append((time, int(dev)))
                 dev_fract_out[beat].append((time, utils.quantize(dev % 1, dev_quant)))
     

@@ -149,8 +149,7 @@ if __name__ == '__main__':
     #                 'note_vel_band', 'note_rel_vel', 'articulation', 'timing_dev', 
     #                 'keys', 'harmonic_quality']
     
-    tokens_meta = ['ibi', 'local_vel_mean', 'artic_whole', 'artic_fract', 
-      'timing_dev_whole', 'timing_dev_fract', 'note_vel_diff']
+    tokens_meta = ['artic', 'timing_dev']
     
     if metric == 'histogram':
         for t_type in tokens_meta:
