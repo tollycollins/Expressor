@@ -14,7 +14,8 @@ def test_lr(init_lr=3e-3,
             wu_ratio=0.1,
             min_lr=1e-8,
             restart_len=10,
-            max_epochs=100):
+            max_epochs=100, 
+            restart_proportion=0.15):
     
     wu_len = wu_ratio * max_epochs
     lr_func = Controller.LR_Func(init_lr, wu_factor, wu_len, min_lr, restart_len, max_epochs)
@@ -52,6 +53,7 @@ if __name__ == '__main__':
     parser.add_argument("--min_lr")
     parser.add_argument("--restart_len")
     parser.add_argument("--max_epochs")
+    parser.add_argument("--restart_proportion")
     
     args_dict = vars(parser.parse_args())
 

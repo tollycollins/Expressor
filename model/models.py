@@ -255,7 +255,7 @@ class Expressor(nn.Module):
         
         return overall_loss, losses    
     
-    def infer(self, x, target, n_init, attr=None):
+    def infer(self, x, target, n_init, attr=None, seq_len=None):
         """
         Infer an output sequence from a given input and attribute
 
@@ -266,6 +266,7 @@ class Expressor(nn.Module):
         n_init: number of members of target (along n axis) to be used to initialise 
             the autoregressive process
         attr: (b, n, d') attribute tokens to be added to latent space
+        seq_len: length of generated sequence (used to cut off very long sequences)
         """
         # initialise recurrent hidden state
         state = None
@@ -290,7 +291,7 @@ class Expressor(nn.Module):
         h = self.logits_to_int(h)
         
         # infer rest of output sequence
-        for i in range(n_init + 1, target.shape[1]):
+        for i in range(n_init + 1, seq_len):
             # get type of next output for skip connection
             y_type = target[:, i, 0]
             # forward pass

@@ -353,7 +353,7 @@ class Controller():
 
         # custom scheduler
         res_len = sch_restart_len if restart_anneal else epochs
-        sched_func = self.LR_Func(init_lr, sch_warm_factor, sch_warm_time * epochs, min_lr, 
+        sched_func = self.LR_Func(sch_warm_factor, sch_warm_time * epochs, min_lr, 
                                   res_len, epochs, sch_restart_proportion)
         scheduler = LambdaLR(optimizer, lambda x: sched_func())
         
@@ -518,6 +518,7 @@ class Controller():
                        device,
                        loader,
                        n_init,
+                       max_len=None,
                        output_path=None):
         
         # ensure model is in evaluation mode
@@ -538,16 +539,19 @@ class Controller():
                 targets = data['out'].to(device)
                 name = data['name']
                 
+                # clip sequence length (optional)
+                seq_len = min(targets.shape[1], max_len or 20000)
+                
                 # forward pass
-                y_pred = net.infer(enc_in, targets, n_init, attr_in)
+                y_pred = net.infer(enc_in, targets, n_init, attr_in, seq_len)
                 y_pred = [y.to(device) for y in y_pred]
                 
                 # calculate losses
-                total_loss, losses = net.compute_loss(y_pred, targets[:, n_init:, :])                               
+                total_loss, losses = net.compute_loss(y_pred, targets[:, n_init: seq_len, :])                               
         
                 cum_loss += total_loss
                 cum_losses += np.array([l.item() for l in losses])
-
+                
                 # Evaluation metrics
                 ...
                 
@@ -666,6 +670,7 @@ class Controller():
                     print('')
                     # run
                     self.train(epochs, **kwargs)
+
                 except KeyboardInterrupt:
                     print("\n[!] Training run stopped by keyboard interrupt ...\n")
     
@@ -675,15 +680,13 @@ class Controller():
 
 
     class LR_Func():
-        def __init__(self, init_lr, 
-                           wu_factor,
+        def __init__(self, wu_factor,
                            wu_len,
                            min_lr,
                            restart_len,
                            max_epochs,
                            restart_proportion=0.15):
         
-            self.init_lr = init_lr
             self.wu_factor = wu_factor
             self.wu_len = round(wu_len)
             self.min_lr_anneal = math.pow(min_lr, 1 - restart_proportion)
@@ -693,8 +696,6 @@ class Controller():
         
             self.step_count = -1
             self.restart_counter = -1
-
-            self.prev_lr = wu_factor
         
         def func(self, epoch):
             # warm-up
@@ -704,31 +705,21 @@ class Controller():
             # cosine annealing
             if epoch > self.wu_len:
                 lr = self.min_lr_anneal + 0.5 * (1 - self.min_lr_anneal) * \
-                          (1 + math.cos((epoch - self.wu_len) * math.pi / 
-                           (self.max_epochs - self.wu_len)))
+                     (1 + math.cos((epoch - self.wu_len) * math.pi / 
+                      (self.max_epochs - self.wu_len)))
 
             # warm restarts
             if epoch > self.wu_len:
                 lr *= self.min_lr_restart + 0.5 * (1 - self.min_lr_restart) * \
-                           (1 + math.cos(self.restart_counter * math.pi / (self.restart_len)))
+                      (1 + math.cos(self.restart_counter * math.pi / (self.restart_len)))
             
             return lr
         
         def __call__(self):
-            
-            # if self.step_count == -1:
-            #     self.step_count += 1
-            #     return 1
-            
-            # self.prev_lr = prev_lr
-
             # update epoch counts
             self.step_count += 1
             self.restart_counter = (self.restart_counter - self.wu_len + 1) \
                                    % self.restart_len
-            
-            # # calculate LR factor
-            # factor = self.func(self.step_count) if self.step_count > 0 else self.wu_factor
-            
-            
+
             return self.func(self.step_count)
+

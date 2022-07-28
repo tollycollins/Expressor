@@ -62,10 +62,10 @@ class WordDataset(Dataset):
         """
         super().__init__()
     
-        self.max_len = max_len
+        self.max_len = max_len                          # max size of dataset
         # self.pitch_aug_range = pitch_aug_range
         self.batch_size = batch_size
-        self.seq_len = seq_len
+        self.seq_len = seq_len                          # max length of seqeunces in a batch
         
         with open(os.path.join(data_base, 'words.xz').replace('\\', '/'), 'rb') as f:
             data = compress_pickle.load(f)
@@ -93,7 +93,8 @@ class WordDataset(Dataset):
             self.names = [meta['words_info']['names'][i] for i in t_idxs]
             
             self.length = min(len(self.in_data), max_len or 1100)
-
+        
+        # larger batch sizes
         else:
             self.length = min(math.ceil(len(t_idxs) / batch_size), max_len or 1100)
 
@@ -126,15 +127,25 @@ class WordDataset(Dataset):
         return self.length
     
     def __getitem__(self, index):
-
+        
         data = {
             'in': self.in_data[index],
-            'out': self.out_data[index],
             'name': self.names[index]
-        }
+        }       
 
         if self.attr_data is not None:
             data['attr'] = self.attr_data[index]
+        
+        if self.seq_len and self.seq_len < data['in'].shape[1]:
+            # impose maximum sequence length (sequences can be shorter)
+            data['in'] = data['in'][:, :self.seq_len, :]
+            data['out'] = self.out_data[index][:, :self.seq_len, :]
+            if self.attr_data is not None:
+                data['attr'] = self.attr_data[index][:, :self.seq_len, :]
+        else:
+            data['out'] = self.out_data[index]
+            if self.attr_data is not None:
+                data['attr'] = self.attr_data[index]
         
         # optional augmentation
         
