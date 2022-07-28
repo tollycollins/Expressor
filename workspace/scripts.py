@@ -46,6 +46,7 @@ from torch.nn.utils import clip_grad_norm_
 from torch.optim import Adam
 from torch.optim.lr_scheduler import LambdaLR
 from torch.optim.swa_utils import AveragedModel, SWALR
+from torch.nn import DataParallel
 
 from fast_transformers.utils import make_mirror
 
@@ -276,12 +277,15 @@ class Controller():
 
     
     def train(self, epochs,
-                    batch_size=1,
+                    train_batch_size=1,
+                    train_seq_len=None,
                     save_name=None,
                     log_mode='w',
                     grad_acc_freq=None,
                     val_freq=5,
                     earliest_val=None,
+                    val_batch_size=1,
+                    val_seq_len=None,                    
                     in_types=[],
                     attr_types=[],
                     out_types=[],
@@ -305,6 +309,7 @@ class Controller():
                     early_stop=50,
                     max_train_size=None,
                     max_eval_size=None,
+                    multiple_devices=False,
                     print_model=False):
         
         # get Dataloaders
@@ -313,20 +318,22 @@ class Controller():
                                                          self.train_ind,
                                                          in_types, attr_types, out_types,
                                                          max_len=max_train_size,
-                                                         batch_size=batch_size), 
-                                  batch_size=1, pin_memory=True, shuffle=True)
+                                                         batch_size=train_batch_size, 
+                                                         seq_len=train_seq_len), 
+                                  batch_size=train_batch_size, pin_memory=True, shuffle=True)
         if val_freq:
             print("Obtaining validation data ...")
             val_loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
                                                         self.val_ind,
                                                         in_types, attr_types, out_types,
                                                         max_len=max_eval_size,
-                                                        batch_size=batch_size),
+                                                        batch_size=val_batch_size,
+                                                        seq_len=val_seq_len),
                                     batch_size=1, pin_memory=True, shuffle=True)
         
         # get positions of tokens in words
         in_pos, attr_pos, out_pos = self.new_positions((in_types, attr_types, out_types))
-
+        
         # get vocabulary sizes [add 1 for 'no token']
         in_vocab_sizes = [len(self.idx2val[t]) + 1 for t in in_pos.values()]
         attr_vocab_sizes = [len(self.idx2val[t]) + 1 for t in attr_pos.values()]
@@ -342,6 +349,10 @@ class Controller():
         if print_model:
             print(model)
         
+        # utilize multiple GPUs
+        if multiple_devices and (train_batch_size > 1 or val_batch_size > 1):
+            model = DataParallel(model)
+        
         # pair model with a recurrent version for evaluation
         if val_freq:
             model_kwargs['init_verbose'] = False
@@ -350,6 +361,8 @@ class Controller():
                                 *model_args, 
                                 is_training=False, 
                                 **model_kwargs)
+            if multiple_devices and (train_batch_size > 1 or val_batch_size > 1):
+                eval_model = DataParallel(eval_model)
             make_mirror(model, eval_model)
         
             if print_model:
