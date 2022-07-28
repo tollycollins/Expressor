@@ -332,24 +332,6 @@ class Controller():
 
         # optimiser
         optimizer = Adam(model.parameters(), lr=init_lr, weight_decay=weight_dec)
-        
-        # # schedulers (chained)
-        # schedulers = []
-        # # cosine anneal lr decay
-        # eta_min = math.pow(min_lr / init_lr, 2/3 if restart_anneal else 1)
-        # schedulers.append(CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-3))
-        # # add restart element to lr decay (optional)
-        # if restart_anneal:
-        #     schedulers.append(CosineAnnealingWarmRestarts(
-        #         optimizer, max(1, int(sch_warm * epochs)), sch_Tmult, 
-        #         eta_min=math.sqrt(eta_min)
-        #     ))
-        # # add warm-up to lr (optional)
-        # if sch_warm:
-        #     w_len = sch_warm * epochs
-        #     schedulers.append(LambdaLR(
-        #         optimizer, lambda x: min(1, 0.7 + 0.3 * (1 - (w_len - x) / w_len))
-        #     ))
 
         # custom scheduler
         res_len = sch_restart_len if restart_anneal else epochs
@@ -443,12 +425,8 @@ class Controller():
                         swa_model.update_parameters(model)
                         swa_scheduler.step()  
                 else:
-                    # for scheduler in schedulers:
-                    #     scheduler.step()
                     scheduler.step()
             else:
-                # for scheduler in schedulers:
-                #     scheduler.step()
                 scheduler.step()
             
             # print
@@ -541,7 +519,7 @@ class Controller():
                 
                 # clip sequence length (optional)
                 seq_len = min(targets.shape[1], max_len or 20000)
-                
+
                 # forward pass
                 y_pred = net.infer(enc_in, targets, n_init, attr_in, seq_len)
                 y_pred = [y.to(device) for y in y_pred]
