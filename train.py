@@ -70,6 +70,7 @@ params = {
                 "log_mode": 'w',
                 "grad_acc_freq": None,
                 "val_freq": 1,
+                "earliest_val": None,
                 "in_types": ['type', 'beat', 'tempo_band', 'pitch', 'start', 'dur_full', 
                              'dur_fract'],
                 "attr_types": [],
@@ -92,6 +93,7 @@ params = {
                         "init_verbose": False
                     },
                 "param_path": None,
+                "laod_opt": False,
                 "init_lr": 3e-3,
                 "min_lr": 1e-6,
                 "weight_dec": 0,
@@ -118,6 +120,7 @@ params = {
                 "log_mode": 'w',
                 "grad_acc_freq": None,
                 "val_freq": 1,
+                "earliest_val": None,
                 "in_types": ['type', 'beat', 'tempo_band', 'pitch', 'start', 'dur_full', 
                              'dur_fract'],
                 "attr_types": [],
@@ -140,6 +143,7 @@ params = {
                         "init_verbose": False
                     },
                 "param_path": None,
+                "laod_opt": False,
                 "init_lr": 3e-3,
                 "min_lr": 1e-6,
                 "weight_dec": 0,
@@ -175,6 +179,7 @@ params = {
                 "log_mode": 'w',
                 "grad_acc_freq": None,
                 "val_freq": 8,
+                "earliest_val": None,
                 "in_types": ['type', 'beat', 'tempo_band', 'pitch', 'start', 'dur_full', 
                              'dur_fract'],
                 "attr_types": [],
@@ -197,6 +202,7 @@ params = {
                         "init_verbose": False
                     },
                 "param_path": None,
+                "laod_opt": False,
                 "init_lr": 3e-3,
                 "min_lr": 1e-6,
                 "weight_dec": 0,

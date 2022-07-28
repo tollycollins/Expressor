@@ -281,6 +281,7 @@ class Controller():
                     log_mode='w',
                     grad_acc_freq=None,
                     val_freq=5,
+                    earliest_val=None,
                     in_types=[],
                     attr_types=[],
                     out_types=[],
@@ -418,7 +419,6 @@ class Controller():
         
             for idx, data in enumerate(train_loader, 1):
                 
-                
                 # unpack data
                 enc_in = data['in'].to(device)
                 attr_in = data['attr'].to(device) if 'attr' in data else None
@@ -480,7 +480,8 @@ class Controller():
                 saver.add_summary(f"{t_type} loss", loss)
             
             # validation
-            if val_freq and (swa_start is None or swa_start is not None and epoch <= swa_time) \
+            if val_freq and epoch > earliest_val \
+                and (swa_start is None or swa_start is not None and epoch <= swa_time) \
                 and ((epoch + 1) % val_freq == 0 or epoch + 1 == epochs):
                 
                 # get time for logging
