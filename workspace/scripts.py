@@ -35,7 +35,6 @@ import logging
 import pickle
 import json
 import math
-import copy
 
 import numpy as np
 
@@ -50,6 +49,8 @@ from torch.optim.swa_utils import AveragedModel, SWALR
 
 from fast_transformers.utils import make_mirror
 
+import sys
+sys.path.append("..")
 from model.models import Expressor
 from model.helpers import network_params
 import data_utils
@@ -262,6 +263,7 @@ class Controller():
                     max_grad_norm=3,
                     restart_anneal=True,
                     sch_restart_len=10,
+                    sch_restart_proportion=0.15,
                     sch_warm_factor=0.5,
                     sch_warm_time=0.05,
                     swa_start=None,
@@ -352,7 +354,7 @@ class Controller():
         # custom scheduler
         res_len = sch_restart_len if restart_anneal else epochs
         sched_func = self.LR_Func(init_lr, sch_warm_factor, sch_warm_time * epochs, min_lr, 
-                                  res_len, epochs)
+                                  res_len, epochs, sch_restart_proportion)
         scheduler = LambdaLR(optimizer, lambda x: sched_func())
         
         # stochastic weight averaging
@@ -678,50 +680,55 @@ class Controller():
                            wu_len,
                            min_lr,
                            restart_len,
-                           max_epochs):
+                           max_epochs,
+                           restart_proportion=0.15):
         
             self.init_lr = init_lr
             self.wu_factor = wu_factor
             self.wu_len = round(wu_len)
-            self.root_min_lr = math.sqrt(min_lr)
+            self.min_lr_anneal = math.pow(min_lr, 1 - restart_proportion)
+            self.min_lr_restart = math.pow(min_lr, restart_proportion)
             self.restart_len = int(round(restart_len))
             self.max_epochs = max_epochs
         
             self.step_count = -1
             self.restart_counter = -1
 
-            self.prev_lr = init_lr
+            self.prev_lr = wu_factor
         
         def func(self, epoch):
             # warm-up
             if epoch <= self.wu_len:
-                next_lr =  self.wu_factor + (1 - self.wu_factor) * epoch / self.wu_len
-            else:
-                next_lr = 1
-
+                lr = self.wu_factor + (1 - self.wu_factor) * epoch / self.wu_len
+            
             # cosine annealing
-            next_lr *= self.root_min_lr + 0.5 * (self.init_lr - self.root_min_lr) * \
-                       (1 + math.cos(epoch * math.pi / self.max_epochs))
+            if epoch > self.wu_len:
+                lr = self.min_lr_anneal + 0.5 * (1 - self.min_lr_anneal) * \
+                          (1 + math.cos((epoch - self.wu_len) * math.pi / 
+                           (self.max_epochs - self.wu_len)))
 
             # warm restarts
-            next_lr *= self.root_min_lr + 0.5 * (self.init_lr - self.root_min_lr) * \
-                       (1 + math.cos(self.restart_counter * math.pi / self.restart_len))
+            if epoch > self.wu_len:
+                lr *= self.min_lr_restart + 0.5 * (1 - self.min_lr_restart) * \
+                           (1 + math.cos(self.restart_counter * math.pi / (self.restart_len)))
             
-            # calculate ratio
-            out = next_lr / self.prev_lr
-            self.prev_lr = next_lr
-
-            return out
+            return lr
         
         def __call__(self):
             
             # if self.step_count == -1:
             #     self.step_count += 1
             #     return 1
+            
+            # self.prev_lr = prev_lr
 
             # update epoch counts
             self.step_count += 1
-            self.restart_counter = (self.restart_counter + 1) % self.restart_len
+            self.restart_counter = (self.restart_counter - self.wu_len + 1) \
+                                   % self.restart_len
             
-            # calculate LR
+            # # calculate LR factor
+            # factor = self.func(self.step_count) if self.step_count > 0 else self.wu_factor
+            
+            
             return self.func(self.step_count)

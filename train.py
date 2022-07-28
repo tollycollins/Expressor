@@ -33,7 +33,7 @@ import os
 import sys
 import pickle
 
-from scripts.scripts import Controller
+from workspace.scripts import Controller
 
 
 params = {
@@ -97,8 +97,9 @@ params = {
                 "weight_dec": 0,
                 "max_grad_norm": 3,
                 "restart_anneal": True,
-                "sch_warm_time": 0.05,
+                "sch_warm_time": 0.1,
                 "sch_restart_len": 10,
+                "sch_restart_proportion": 0.15,
                 "sch_warm_factor": 0.5,
                 "swa_start": None,
                 "swa_init": 0.001,
@@ -144,8 +145,9 @@ params = {
                 "weight_dec": 0,
                 "max_grad_norm": 3,
                 "restart_anneal": True,
-                "sch_warm_time": 0.05,
+                "sch_warm_time": 0.1,
                 "sch_restart_len": 10,
+                "sch_restart_proportion": 0.15,
                 "sch_warm_factor": 0.5,
                 "swa_start": None,
                 "swa_init": 0.001,
@@ -200,8 +202,9 @@ params = {
                 "weight_dec": 0,
                 "max_grad_norm": 3,
                 "restart_anneal": True,
-                "sch_warm_time": 0.05,
+                "sch_warm_time": 0.1,
                 "sch_restart_len": 10,
+                "sch_restart_proportion": 0.15,
                 "sch_warm_factor": 0.5,
                 "swa_start": None,
                 "swa_init": 0.001,
@@ -257,4 +260,3 @@ if __name__ == '__main__':
 
     controller.hyper_search(kwargs, changes, epochs, search_type)
     
-    print("I am here")
