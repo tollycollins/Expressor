@@ -35,6 +35,7 @@ import logging
 import pickle
 import json
 import math
+import copy
 
 import numpy as np
 
@@ -43,7 +44,7 @@ from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
 from torch.optim import Adam
 from torch.optim.lr_scheduler import (
-    CosineAnnealingWarmRestarts, CosineAnnealingLR, LambdaLR,
+    CosineAnnealingWarmRestarts, CosineAnnealingLR, LambdaLR
 )
 from torch.optim.swa_utils import AveragedModel, SWALR
 
@@ -260,12 +261,13 @@ class Controller():
                     weight_dec=0,
                     max_grad_norm=3,
                     restart_anneal=True,
-                    sch_Tmult=1,
-                    sch_warm=0.05,
+                    sch_restart_len=10,
+                    sch_warm_factor=0.5,
+                    sch_warm_time=0.05,
                     swa_start=None,
                     swa_init=0.001,
                     n_eval_init=1,
-                    save_cond='loss',
+                    save_cond='val_loss',
                     early_stop=50,
                     max_train_size=None,
                     max_eval_size=None,
@@ -329,29 +331,35 @@ class Controller():
         # optimiser
         optimizer = Adam(model.parameters(), lr=init_lr, weight_decay=weight_dec)
         
-        # schedulers (chained)
-        schedulers = []
-        # cosine anneal lr decay
-        eta_min = math.pow(min_lr / init_lr, 2/3 if restart_anneal else 1)
-        schedulers.append(CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-3))
-        # add restart element to lr decay (optional)
-        if restart_anneal:
-            schedulers.append(CosineAnnealingWarmRestarts(
-                optimizer, max(1, int(sch_warm * epochs)), sch_Tmult, 
-                eta_min=math.sqrt(eta_min)
-            ))
-        # add warm-up to lr (optional)
-        if sch_warm:
-            w_len = sch_warm * epochs
-            schedulers.append(LambdaLR(
-                optimizer, lambda x: min(1, 0.7 + 0.3 * (1 - (w_len - x) / w_len))
-            ))
+        # # schedulers (chained)
+        # schedulers = []
+        # # cosine anneal lr decay
+        # eta_min = math.pow(min_lr / init_lr, 2/3 if restart_anneal else 1)
+        # schedulers.append(CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-3))
+        # # add restart element to lr decay (optional)
+        # if restart_anneal:
+        #     schedulers.append(CosineAnnealingWarmRestarts(
+        #         optimizer, max(1, int(sch_warm * epochs)), sch_Tmult, 
+        #         eta_min=math.sqrt(eta_min)
+        #     ))
+        # # add warm-up to lr (optional)
+        # if sch_warm:
+        #     w_len = sch_warm * epochs
+        #     schedulers.append(LambdaLR(
+        #         optimizer, lambda x: min(1, 0.7 + 0.3 * (1 - (w_len - x) / w_len))
+        #     ))
+
+        # custom scheduler
+        res_len = sch_restart_len if restart_anneal else epochs
+        sched_func = self.LR_Func(init_lr, sch_warm_factor, sch_warm_time * epochs, min_lr, 
+                                  res_len, epochs)
+        scheduler = LambdaLR(optimizer, lambda x: sched_func())
         
         # stochastic weight averaging
         swa_model = None
         if swa_start is not None:
             swa_scheduler = SWALR(optimizer, swa_lr=swa_init, anneal_strategy='cos')
-
+        
         # saver agent
         saver = SaverAgent(self.path.replace('\\', '/'), save_name=save_name, 
                            filemode=log_mode)
@@ -433,18 +441,20 @@ class Controller():
                         swa_model.update_parameters(model)
                         swa_scheduler.step()  
                 else:
-                    for scheduler in schedulers:
-                        scheduler.step()
-            else:
-                for scheduler in schedulers:
+                    # for scheduler in schedulers:
+                    #     scheduler.step()
                     scheduler.step()
+            else:
+                # for scheduler in schedulers:
+                #     scheduler.step()
+                scheduler.step()
             
             # print
             runtime = time.time() - start_time
             cum_loss /= len(train_loader)
             cum_losses /= len(train_loader)
             print(f"----- epoch: {epoch + 1}/{epochs} | Loss: {cum_loss:08f}" \
-                  f" Learning rate: {l_rate} | time: {runtime:03f} -----")
+                  f" Learning rate: {l_rate:10f} | time: {runtime:03f} -----")
             print('    > ', ' | '.join(f"{t}: {l:06f}" for t, l in zip(out_pos.values(), 
                                                                        cum_losses)))
             
@@ -498,7 +508,7 @@ class Controller():
             saver.save_model(swa_model, name='swa_model', just_weights=True)
         
         runtime = (time.time() - training_start_time)
-        print(f"Training completed in {int(runtime / 3600)} hrs,"
+        print(f"Training completed in {int(runtime / 3600)} hrs, "
               f"{int((runtime % 3600) / 60)} mins")
             
                 
@@ -612,13 +622,13 @@ class Controller():
         for t_types, pos in zip(t_types_tup, ('in_pos', 'attr_pos', 'out_pos')):
             # order old_types by position in word
             old_types = sorted(self.meta[pos].keys(), key=lambda x: self.meta[pos][x])
-
+            
             # only keep types in new word, and give index as key
             out.append({i: t for i, t in 
                         enumerate([ot for ot in old_types if ot in t_types])})
         
         return out
-
+    
     
     def hyper_search(self, kwargs,
                            search_changes,
@@ -633,26 +643,85 @@ class Controller():
         # no need for search if epochs is an int
         if not len(search_changes):
             self.train(epochs, **kwargs)
-
+        
         elif search_type == 'zip':
+            total_runs = len(list(zip(*search_changes.values())))
+            
             # loop over runs
-            p = zip(*search_changes.values())
-            for run, changes in enumerate(p):
-                # make changes to train() parameters
-                print(f"*** Run {run}/{len(list(p))}: ")
-                for kw, change in zip(search_changes.keys(), changes):
-                    if kw == 'save_name':
-                        kwargs[kw] += '_' + str(change)
-                    elif kw == 'model_kwargs':
-                        for k, v in change.items():
-                            kwargs[kw][k] = v
-                    else:
-                        kwargs[kw] = change
-                    print(f"\t{kw}: {change}")
-                # run
-                self.train(epochs, **kwargs)
+            for run, changes in enumerate(zip(*search_changes.values()), 1):
+                try:
+                    # make changes to train() parameters
+                    print(f"*** Run {run}/{total_runs}: ")
+                    for kw, change in zip(search_changes.keys(), changes):
+                        if kw == 'save_name':
+                            kwargs[kw] += '_' + str(change)
+                        elif kw == 'model_kwargs':
+                            for k, v in change.items():
+                                kwargs[kw][k] = v
+                        else:
+                            kwargs[kw] = change
+                        print(f"\t{kw}: {change}")
+                    print('')
+                    # run
+                    self.train(epochs, **kwargs)
+                except KeyboardInterrupt:
+                    print("\n[!] Training run stopped by keyboard interrupt ...\n")
     
     
     def render(self):
         ...
 
+
+    class LR_Func():
+        def __init__(self, init_lr, 
+                           wu_factor,
+                           wu_len,
+                           min_lr,
+                           restart_len,
+                           max_epochs):
+        
+            self.init_lr = init_lr
+            self.wu_factor = wu_factor
+            self.wu_len = round(wu_len)
+            self.root_min_lr = math.sqrt(min_lr)
+            self.restart_len = int(round(restart_len))
+            self.max_epochs = max_epochs
+        
+            self.step_count = -1
+            self.restart_counter = -1
+
+            self.prev_lr = init_lr
+        
+        def func(self, epoch):
+            # warm-up
+            if epoch <= self.wu_len:
+                next_lr =  self.wu_factor + (1 - self.wu_factor) * epoch / self.wu_len
+            else:
+                next_lr = 1
+
+            # cosine annealing
+            next_lr *= self.root_min_lr + 0.5 * (self.init_lr - self.root_min_lr) * \
+                       (1 + math.cos(epoch * math.pi / self.max_epochs))
+
+            # warm restarts
+            next_lr *= self.root_min_lr + 0.5 * (self.init_lr - self.root_min_lr) * \
+                       (1 + math.cos(self.restart_counter * math.pi / self.restart_len))
+            
+            # calculate ratio
+            out = next_lr / self.prev_lr
+            self.prev_lr = next_lr
+
+            return out
+        
+        def __call__(self):
+            
+            # if self.step_count == -1:
+            #     self.step_count += 1
+            #     return 1
+
+            # update epoch counts
+            self.step_count += 1
+            self.restart_counter = (self.restart_counter + 1) % self.restart_len
+            
+            # calculate LR
+            return self.func(self.step_count)

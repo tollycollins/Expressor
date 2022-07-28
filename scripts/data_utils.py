@@ -55,6 +55,7 @@ class WordDataset(Dataset):
                  out_types,
                  batch_size=1,
                  max_len=None,
+                 seq_len=None,
                  pitch_aug_range=None):
         """
         data: (in, attr, out) - [seq(words)]
@@ -64,6 +65,7 @@ class WordDataset(Dataset):
         self.max_len = max_len
         # self.pitch_aug_range = pitch_aug_range
         self.batch_size = batch_size
+        self.seq_len = seq_len
         
         with open(os.path.join(data_base, 'words.xz').replace('\\', '/'), 'rb') as f:
             data = compress_pickle.load(f)
@@ -75,20 +77,21 @@ class WordDataset(Dataset):
             attr_pos = sorted([meta['attr_pos'][t] for t in attr_types])
         
         if batch_size == 1:
-            self.in_data = [[[word[i] for i in in_pos] for word in track] for \
-                            idx, track in enumerate(data[0]) if idx in t_idxs]
+            self.in_data = [torch.as_tensor([[word[i] for i in in_pos] for word in track])
+                            for idx, track in enumerate(data[0]) if idx in t_idxs]
         
             self.attr_data = None
             if len(attr_types):
                 attr_pos = sorted([meta['attr_pos'][t] for t in attr_types])
-                self.attr_data = [[[word[i] for i in attr_pos] for word in track] for \
-                                  idx, track in enumerate(data[1]) if idx in t_idxs]
+                self.attr_data = [torch.as_tensor([[word[i] for i in attr_pos] for word in 
+                                  track]) for idx, track in enumerate(data[1]) if idx in 
+                                  t_idxs]
             
-            self.out_data = [[[word[i] for i in out_pos] for word in track] for \
-                             idx, track in enumerate(data[2]) if idx in t_idxs]
+            self.out_data = [torch.as_tensor([[word[i] for i in out_pos] for word in track]) 
+                             for idx, track in enumerate(data[2]) if idx in t_idxs]
             
             self.names = [meta['words_info']['names'][i] for i in t_idxs]
-
+            
             self.length = min(len(self.in_data), max_len or 1100)
 
         else:

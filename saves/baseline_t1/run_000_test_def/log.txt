@@ -1,0 +1,20 @@
+ > # parameters: {n_params}
+train loss | 3.9984594981 |          1 | 0.8545358180999756
+learning rate | 0.0021000000 |          1 | 0.8555335998535156
+type loss  | 1.2499727408 |          1 | 0.8555335998535156
+ibi loss   | 4.9789373080 |          1 | 0.8555335998535156
+local_vel_mean loss | 4.7294545174 |          1 | 0.8555335998535156
+artic_whole loss | 4.9771893819 |          1 | 0.8555335998535156
+artic_fract loss | 3.0893491109 |          1 | 0.8555335998535156
+timing_dev_whole loss | 3.3486748536 |          1 | 0.8555335998535156
+timing_dev_fract loss | 4.6144142151 |          1 | 0.8555335998535156
+note_vel_diff loss | 4.9996824265 |          1 | 0.8555335998535156
+validation loss | 3.903787136077881 |          1 | 13.968460321426392
+validation type loss | 0.9254479408 |          1 | 13.968460321426392
+validation ibi loss | 4.8930349350 |          1 | 13.968460321426392
+validation local_vel_mean loss | 4.6515960693 |          1 | 13.968460321426392
+validation artic_whole loss | 4.8952937126 |          1 | 13.968460321426392
+validation artic_fract loss | 3.0854296684 |          1 | 13.968460321426392
+validation timing_dev_whole loss | 3.2747418880 |          1 | 13.968460321426392
+validation timing_dev_fract loss | 4.5570030212 |          1 | 13.968460321426392
+validation note_vel_diff loss | 4.9477472305 |          1 | 13.969459533691406

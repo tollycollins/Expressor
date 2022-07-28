@@ -8,6 +8,7 @@ import sys
 import pandas as pd
 import numpy as np
 
+import utils
 
 def get_unique_vals(tokens_root, t_type, verbose=True, print_freqs=False,
                         by_track=False):
@@ -147,7 +148,8 @@ if __name__ == '__main__':
     #                 'note_vel_band', 'note_rel_vel', 'articulation', 'timing_dev', 
     #                 'keys', 'harmonic_quality']
     
-    tokens_meta = ['artic', 'timing_dev']
+    tokens_meta = ['beat', 'tempo_band', 'pitch', 'start', 'dur_full', 'ibi', 
+                   'local_vel_mean', 'artic', 'timing_dev', 'note_vel_diff']
     
     if metric == 'histogram':
         for t_type in tokens_meta:
@@ -167,5 +169,15 @@ if __name__ == '__main__':
 
     if metric == 'words_lens':
         named_len, lens, max_len = words_lens(words_meta_path)
-        print(max_len)
+        length_buckets = {1000 * i: 0 for i in range(21)}
+        for l in lens:
+            if l > 20500:
+                print(f"Leangth out of range: {l}")
+            else:
+                length_buckets[int(utils.quantize(l, 1000))] += 1
+        
+        print(f"Maximum words sequence length: {max_len}")
+        print("Lengths distribution: ")
+        for k, v in length_buckets.items():
+            print(f"\t{k}:\t{v}")
 

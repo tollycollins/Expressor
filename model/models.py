@@ -181,24 +181,11 @@ class Expressor(nn.Module):
             attr_emb = torch.cat([e(attr[..., i]) for i, e in 
                                   enumerate(self.attr_embeddings)], dim=-1)        
         
-        ###
-        # print(f"y: {y.shape}")
-        # print(f"y_type: {y_type}")
-        
 
         dec_emb = torch.cat([e(y[..., i]) for i, e in enumerate(self.dec_embeddings)], 
                             dim=-1)
-        
-
-        ###
-        # print(f"Tensor going into embedding: {dec_emb.shape}")
-
         dec_emb = self.dec_emb_lin(dec_emb)
-        
-        ###
-        # print(f"Tensor going into positional encoding: {dec_emb.shape}")
 
-        
         dec_emb = self.dec_pos(dec_emb, seq_pos=seq_pos)            
         
         # encoder
@@ -217,26 +204,12 @@ class Expressor(nn.Module):
                 attr_emb = self.attr_pos(attr_emb)
             zs = torch.cat([zs, attr_emb], dim=-1)
         
-        
-        ###
-        # print(f"Tensor going into dec_block: {dec_emb.shape}")
-
-        
         # decoder
         if self.is_training:
             out = self.dec_block(dec_emb, zs)
         else:
-
-
-
-            # dec_emb = dec_emb.squeeze(1)
             out, state = self.dec_block(dec_emb, zs, state=state)
-            # out.unsqueeze(1)
         
-        ###
-        # print(f"After dec_block: {out.shape}")        
-
-
         # type residual (optional)
         if self.out_t_types[0] == 'type':
             # get type prediction before residual connection
@@ -257,13 +230,7 @@ class Expressor(nn.Module):
         
         else:
             tokens_out = [p(out) for p in self.proj]
-
-        # tokens out dims for each token in list: (batch, seq_len, voc_size)
-
-        ###
-        # print(f"First member of forward output list: {tokens_out[0].shape}")
-
-
+        
         return tokens_out, state
 
     def compute_loss(self, pred_tokens, targets):

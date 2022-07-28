@@ -24,22 +24,27 @@ def plot_training(path_log,
                 continue
 
     # collect
-    step_train = [item[1] for item in monitor_vals['epoch loss']]
-    vals_train = [item[0] for item in monitor_vals['epoch loss']]
+    step_train = [item[1] for item in monitor_vals['train loss']]
+    vals_train = [item[0] for item in monitor_vals['train loss']]
 
     step_valid = [item[1] for item in monitor_vals['validation loss']]
     vals_valid = [item[0] for item in monitor_vals['validation loss']]
-
-    x_min = step_valid[np.argmin(vals_valid)]
-    y_min = min(vals_valid)
-
+    
     # plot
     fig = plt.figure(dpi=dpi)
     plt.title('training process')
     plt.plot(step_train, vals_train, label='train')
-    plt.plot(step_valid, vals_valid, label='valid')
+    if len(step_valid):
+        plt.plot(step_valid, vals_valid, label='valid')
     plt.yscale('log')
-    plt.plot([x_min], [y_min], 'ro')
+
+    try:
+        x_min = step_valid[np.argmin(vals_valid)]
+        y_min = min(vals_valid)
+        plt.plot([x_min], [y_min], 'ro')
+    except ValueError:
+        pass
+
     plt.legend(loc='upper right')
     plt.tight_layout()
 
@@ -52,11 +57,6 @@ if __name__ == '__main__':
     func = sys.argv[1]
     args = sys.argv[2:]
 
-    print("here 1")
-
-    if func == 'plot_training':
-
-        print("here 2")
-        
+    if func == 'plot_training':        
         path_log = os.path.join('saves', args[0], args[1], 'log.txt')
         plot_training(path_log)

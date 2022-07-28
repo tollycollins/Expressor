@@ -55,7 +55,13 @@ params = {
                         [[4, 4, 4, 4, 4, 4, 4], 8, 2, 1, 16, 
                          [4, 4, 4, 4, 4, 4, 4, 4], 8, 2, 1, 16]
                     ],
-                    'print_model': [False, False]
+                    'print_model': [False, False],
+                    'max_train_size': [4, 2],
+                    'val_freq': [0, 2]
+                },
+                'sched_test': {
+                    'val_freq': [0],
+                    'sch_restart_len': [5]
                 }
             },
             'kwargs': {
@@ -91,8 +97,9 @@ params = {
                 "weight_dec": 0,
                 "max_grad_norm": 3,
                 "restart_anneal": True,
-                "sch_Tmult": 1,
-                "sch_warm": 0.05,
+                "sch_warm_time": 0.05,
+                "sch_restart_len": 10,
+                "sch_warm_factor": 0.5,
                 "swa_start": None,
                 "swa_init": 0.001,
                 "n_eval_init": 1,
@@ -137,8 +144,9 @@ params = {
                 "weight_dec": 0,
                 "max_grad_norm": 3,
                 "restart_anneal": True,
-                "sch_Tmult": 1,
-                "sch_warm": 0.05,
+                "sch_warm_time": 0.05,
+                "sch_restart_len": 10,
+                "sch_warm_factor": 0.5,
                 "swa_start": None,
                 "swa_init": 0.001,
                 "n_eval_init": 1,
@@ -192,8 +200,9 @@ params = {
                 "weight_dec": 0,
                 "max_grad_norm": 3,
                 "restart_anneal": True,
-                "sch_Tmult": 1,
-                "sch_warm": 0.05,
+                "sch_warm_time": 0.05,
+                "sch_restart_len": 10,
+                "sch_warm_factor": 0.5,
                 "swa_start": None,
                 "swa_init": 0.001,
                 "n_eval_init": 1,
@@ -248,3 +257,4 @@ if __name__ == '__main__':
 
     controller.hyper_search(kwargs, changes, epochs, search_type)
     
+    print("I am here")
