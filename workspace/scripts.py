@@ -36,21 +36,19 @@ import pickle
 import json
 import math
 
+import compress_pickle
+
 import numpy as np
 
 import torch
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_norm_
 from torch.optim import Adam
-from torch.optim.lr_scheduler import (
-    CosineAnnealingWarmRestarts, CosineAnnealingLR, LambdaLR
-)
+from torch.optim.lr_scheduler import LambdaLR
 from torch.optim.swa_utils import AveragedModel, SWALR
 
 from fast_transformers.utils import make_mirror
 
-import sys
-sys.path.append("..")
 from model.models import Expressor
 from model.helpers import network_params
 import data_utils
@@ -140,16 +138,17 @@ class SaverAgent():
                          just_weights=True):
         
         outdir = outdir or self.save_dir
-        if just_weights:
-            print(f' [*] saving model weights to {outdir}, name: {name}')
-            torch.save(model.state_dict(), os.path.join(outdir, name + '_params.pt'))
-        else:
+        if not just_weights:
             print(f' [*] saving model to {outdir}, name: {name}')
-            torch.save(model, os.path.join(outdir, name + '.pt'))
-            torch.save(model.state_dict(), os.path.join(outdir, name + '_params.pt'))
+            with open(os.path.join(outdir, name + '.pkl'), 'wb') as f:
+                compress_pickle.dump(model, f, compression='lzma')
 
+        with open(os.path.join(outdir, name + '_params.pkl'), 'wb') as f:    
+            compress_pickle.dump(model.state_dict(), f, compression='lzma')
+        
         if optimizer is not None:
-            torch.save(optimizer.state_dict(), os.path.join(outdir, name + '_opt.pt'))
+            with open (os.path.join(outdir, name + '_opt.pkl')) as f:
+                compress_pickle.dump(optimizer.state_dict(), f, compression='lzma')
     
     def check_save(self, metric,
                          better='lower'):
@@ -172,14 +171,45 @@ class SaverAgent():
         return False, self.improvement_ctr
             
     def load_model(self, path_exp=None, 
-                         device='cpu', 
-                         name='model.pt'):
+                         name='model.pkl',
+                         optimizer=None):
         
         path_exp = path_exp or self.save_dir
         path_pt = os.path.join(path_exp, name)
         print(' [*] restoring model from', path_pt)
-        model = torch.load(path_pt, map_location=torch.device(device))
-        return model
+        
+        with open(path_pt, 'rb') as f:
+            model = compress_pickle.load(f)
+
+        if optimizer is not None:
+            opt_name = os.path.join(os.path.splitext(name)[0], '_opt.pkl')
+            path_opt = os.path.join(path_exp, opt_name)
+            with open(path_opt,'rb') as f:
+                optimizer.load_state_dict(compress_pickle.load(f))
+        
+        return model, optimizer
+    
+    def load_state(self, model, 
+                         path_exp=None,
+                         name='model_params.pkl',
+                         optimizer=False):
+
+        path_exp = path_exp or self.save_dir
+        path_pt = os.path.join(path_exp, name)
+        print(' [*] restoring model state from', path_pt)
+        
+        with open(path_pt, 'rb') as f:
+            state = compress_pickle.load(f)
+        
+        model.load_state_dict(state)
+        
+        if optimizer is not None:
+            opt_name = os.path.join(os.path.splitext(name)[0][:-10], 'opt.pkl')
+            path_opt = os.path.join(path_exp, opt_name)
+            with open(path_opt,'rb') as f:
+                optimizer.load_state_dict(compress_pickle.load(f))
+        
+        return model, optimizer
         
     def global_step_increment(self):
         self.global_step += 1
@@ -257,6 +287,7 @@ class Controller():
                     model_args=[],
                     model_kwargs={},
                     param_path=None,
+                    laod_opt=False,
                     init_lr=3e-3,
                     min_lr=1e-6,
                     weight_dec=0,
@@ -283,13 +314,14 @@ class Controller():
                                                          max_len=max_train_size,
                                                          batch_size=batch_size), 
                                   batch_size=1, pin_memory=True, shuffle=True)
-        print("Obtaining validation data ...")
-        val_loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
-                                                       self.val_ind,
-                                                       in_types, attr_types, out_types,
-                                                       max_len=max_eval_size,
-                                                       batch_size=batch_size),
-                                batch_size=1, pin_memory=True, shuffle=True)
+        if val_freq:
+            print("Obtaining validation data ...")
+            val_loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
+                                                        self.val_ind,
+                                                        in_types, attr_types, out_types,
+                                                        max_len=max_eval_size,
+                                                        batch_size=batch_size),
+                                    batch_size=1, pin_memory=True, shuffle=True)
         
         # get positions of tokens in words
         in_pos, attr_pos, out_pos = self.new_positions((in_types, attr_types, out_types))
@@ -310,25 +342,21 @@ class Controller():
             print(model)
         
         # pair model with a recurrent version for evaluation
-        model_kwargs['init_verbose'] = False
-        eval_model = Expressor(in_types, attr_types, out_types,
-                               in_vocab_sizes, attr_vocab_sizes, out_vocab_sizes,
-                               *model_args, 
-                               is_training=False, 
-                               **model_kwargs)
-        make_mirror(model, eval_model)
+        if val_freq:
+            model_kwargs['init_verbose'] = False
+            eval_model = Expressor(in_types, attr_types, out_types,
+                                in_vocab_sizes, attr_vocab_sizes, out_vocab_sizes,
+                                *model_args, 
+                                is_training=False, 
+                                **model_kwargs)
+            make_mirror(model, eval_model)
         
-        if print_model:
-            print("Eval model: ")
-            print(eval_model)
+            if print_model:
+                print("Eval model: ")
+                print(eval_model)
 
         n_params = network_params(model)
         print(f"Model parameters: {n_params}")
-        
-        # load model parameters
-        if param_path:
-            print("Loading model parameters from {param_path}")
-            model.load_state_dict(torch.load(param_path))
 
         # optimiser
         optimizer = Adam(model.parameters(), lr=init_lr, weight_decay=weight_dec)
@@ -353,6 +381,13 @@ class Controller():
                                       in_vocab_sizes, attr_vocab_sizes, out_vocab_sizes, 
                                       *model_args],
                           model_kwargs=model_kwargs)
+        
+        # load model state
+        if param_path:
+            if not laod_opt:
+                model, _ = saver.load_state(model, param_path, optimizer=laod_opt)
+            else:
+                model, optimizer = saver.load_state(model, param_path, optimizer=optimizer)
         
         # handle device
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -486,7 +521,12 @@ class Controller():
         # save SWA model
         if swa_start and epoch > swa_time:
             saver.save_model(swa_model, name='swa_model', just_weights=True)
+
+        # if no validation, save model weights
+        if not val_freq:
+            saver.save_model(model, just_weights=True)
         
+        # end of traiing info
         runtime = (time.time() - training_start_time)
         print(f"Training completed in {int(runtime / 3600)} hrs, "
               f"{int((runtime % 3600) / 60)} mins")
