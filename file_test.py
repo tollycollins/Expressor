@@ -18,7 +18,8 @@ def test_lr(init_lr=3e-3,
             restart_proportion=0.15):
     
     wu_len = wu_ratio * max_epochs
-    lr_func = Controller.LR_Func(init_lr, wu_factor, wu_len, min_lr, restart_len, max_epochs)
+    lr_func = Controller.LR_Func(wu_factor, wu_len, min_lr, restart_len, max_epochs, 
+                                 restart_proportion)
     
     lr = init_lr
     lrs = []
@@ -38,10 +39,11 @@ def test_lr(init_lr=3e-3,
     plt.plot(epochs, lrs)
     plt.xlabel('epoch')
     plt.yscale('log')
-    plt.show()
 
     save_path = 'workspace/meta/lr.png'
     plt.savefig(save_path)
+
+    plt.show()
 
 
 if __name__ == '__main__':

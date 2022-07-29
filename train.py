@@ -192,10 +192,18 @@ params = {
             'searches': {
                 'def': {},
                 'lrs': {
-                  'init_lr': [1e-3, 3e-4, 1e-4, 3e-5],
+                  'init_lr': [1e-2, 3e-3, 1e-3, 3e-4],
                   'min_lr': [1e-6, 1e-6, 1e-6, 1e-7],
-                  'val_freq': [0, 0, 0, 0],
-                  'max_train_size': [128, 128, 128, 128]
+                  'val_freq': [0, 0, 0, 16],
+                  'earliest_val': [72, 72, 72, 72],
+                  'max_train_size': [128, 128, 128, 128],
+                  'train_batch_size': [8, 8, 8, 8],
+                  'train_seq_len': [4000, 4000, 4000, 4000],
+                  'val_seq_len': [200, 200, 200, 1000],
+                  'grad_acc_freq': [None, None, None, None],
+                  'val_batch_size': [8, 8, 8, 8],
+                  'max_eval_size': [1, 1, 1, 16],
+                  'save_name': ['1e-2', '3e-3', '1e-3', '3e-4']
                  }
             },
             'kwargs': {
