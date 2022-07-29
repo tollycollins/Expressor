@@ -333,7 +333,7 @@ if __name__ == '__main__':
 
     default_duration_quant = 1/60
     
-    default_dynamics_mean_len = 3
+    default_dynamics_mean_len = 1
     default_dynamics_bands = [0, 31, 63, 95, 127]
     default_dynamics_band_hysteresis = (5, 5)
     
@@ -351,7 +351,18 @@ if __name__ == '__main__':
     default_harmonic_extra_reduce = False
     default_harmonic_conti = True
     
-    create_training_data({'artic': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timing_calc_type, 
-                          'last_note_max_hold': default_last_note_max_hold, 'large_values_quant': default_lv_quant}},
+    create_training_data({'beat': {},
+                        'tempo_band': {'lower_bounds': default_tempo_lower_bounds, 'hysteresis': default_tempo_hysteresis, 'allow_zero': default_tempo_allow_zero},
+                        'pitch': {},
+                        'start': {'start_quant': 1/60},
+                        'duration': {'duration_quant': default_duration_quant},
+                        'ibi': {'ibi_quant': 0.02},
+                        'local_vel_mean': {'mean_len': default_dynamics_mean_len, 'mean_quant': 1},
+                        'artic': {'artic_quant': default_artic_quant, 'artic_lims': default_artic_lims, 'calc_type': default_timing_calc_type, 
+                          'last_note_max_hold': default_last_note_max_hold, 'large_values_quant': default_lv_quant},
+                        'timing_dev': {'dev_quant': default_dev_quant, 'dev_lims': default_dev_lims, 'cubic_len': default_cubic_len, 
+                           'beat_in_beat_weight': default_beat_in_beat_weight, 'non_beat_in_beat_weight': default_non_beat_in_beat_weight,
+                           'calc_type': default_timing_calc_type, 'large_values_quant': default_lv_quant},
+                        'note_vel_diff': {}},
                          os.path.join('dataset/tokens', save_name), align_range=0.25, beat_eps=1e-2)
 

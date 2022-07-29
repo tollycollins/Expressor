@@ -65,9 +65,11 @@ import utils
 
 def get_type_options():
     options =  {
-        'eos': 1,
-        'metric': 2,
-        'note': 3
+        'sos': 1,
+        'eos': 2,
+        'metric': 3,
+        'note': 4,
+        'meta': 5
     }
     return options
 

@@ -22,6 +22,20 @@ params = {
                                  'timing_dev', 'timing_dev_whole', 
                                  'timing_dev_fract', 'note_vel_diff']
         }
+    },
+    't2': {
+        'paths': ['dataset/tokens/t2', 'saves'],
+        'kwargs': {
+            'bar_tokens': None,
+            'eos_tokens': (True, True),
+            'type_tokens': True,
+            'in_metric_t_types': ['beat', 'tempo_band'],
+            'in_note_t_types': ['pitch', 'start', 'duration'],
+            'attr_metric_t_types': [],
+            'attr_note_t_types': [],
+            'out_metric_t_types': ['ibi', 'local_vel_mean'],
+            'out_note_t_types': ['artic', 'timing_dev', 'note_vel_diff']
+        }
     }
 }
 

@@ -2,6 +2,7 @@
 tests
 """
 import argparse
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -47,24 +48,11 @@ def test_lr(init_lr=3e-3,
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("func")
-    parser.add_argument("--init_lr")
-    parser.add_argument("--wu_factor")
-    parser.add_argument("--wu_ratio")
-    parser.add_argument("--min_lr")
-    parser.add_argument("--restart_len")
-    parser.add_argument("--max_epochs")
-    parser.add_argument("--restart_proportion")
-    
-    args_dict = vars(parser.parse_args())
 
-    try:
-        kwargs = args_dict['keyword_args']
-    except KeyError:
-        kwargs = {}
+    argv = sys.argv[1:]
+    args = [arg for arg in argv if arg.find('=') < 0]
+    kwargs = {kw[0]: float(kw[1]) for kw in [ar.split('=') for ar in argv if ar.find('=') > 0]}
 
-    func = args_dict['func']
-    locals()[args_dict['func']](**kwargs)
+    locals()[args[0]](**kwargs)
     
     

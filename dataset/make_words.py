@@ -44,7 +44,7 @@ def get_word_seq(tokens, cw, t_pos, val2idx,
     # beginning of sequence token
     if eos_tokens[0]:
         word = cw.copy()
-        word[0] = val2idx['type'][token_funcs.type_token_val('eos')]
+        word[0] = val2idx['type'][token_funcs.type_token_val('sos')]
         words.append(word)
             
     # words by beat

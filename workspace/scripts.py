@@ -746,7 +746,7 @@ class Controller():
             self.max_epochs = max_epochs
         
             self.step_count = -1
-            self.restart_counter = -1
+            self.restart_counter = -self.wu_len - 1
         
         def func(self, epoch):
             # warm-up
@@ -769,8 +769,8 @@ class Controller():
         def __call__(self):
             # update epoch counts
             self.step_count += 1
-            self.restart_counter = (self.restart_counter - self.wu_len + 1) \
+            self.restart_counter = (self.restart_counter + 1) \
                                    % self.restart_len
-
+            
             return self.func(self.step_count)
 

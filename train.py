@@ -134,77 +134,28 @@ params = {
                 "max_eval_size": 1,
                 "print_model": False
             }
-        },
-        'baseline': {
-            'kwargs': {
-                "train_batch_size": 1,
-                "train_seq_len": None,
-                "save_name": 'baseline',
-                "log_mode": 'w',
-                "grad_acc_freq": None,
-                "val_freq": 1,
-                "earliest_val": 0,
-                "val_batch_size": 1,
-                "val_seq_len": None,
-                "in_types": ['type', 'beat', 'tempo_band', 'pitch', 'start', 'dur_full', 
-                             'dur_fract'],
-                "attr_types": [],
-                "out_types": ['type', 'ibi', 'local_vel_mean', 'artic_whole', 'artic_fract', 
-                              'timing_dev_whole', 'timing_dev_fract', 'note_vel_diff'],
-                "model_args": [
-                        [4, 32, 8, 128, 128, 32, 64], 512, 12, 8, 2048, 
-                        [128, 128, 128, 32, 32, 128, 128, 128], 512, 12, 8, 2048
-                    ],
-                "model_kwargs": {
-                        "attr_emb_dims": [],
-                        "attr_pos_emb": False,
-                        "enc_norm_layer": True,
-                        "enc_dropout": 0.1,
-                        "enc_act": 'relu',
-                        "dec_dropout": 0.1,
-                        "dec_act": 'relu',
-                        "skips": False,
-                        "hidden": True,
-                        "init_verbose": False
-                    },
-                "param_path": None,
-                "laod_opt": False,
-                "init_lr": 3e-3,
-                "min_lr": 1e-6,
-                "weight_dec": 0,
-                "max_grad_norm": 3,
-                "restart_anneal": True,
-                "sch_warm_time": 0.1,
-                "sch_restart_len": 10,
-                "sch_restart_proportion": 0.15,
-                "sch_warm_factor": 0.5,
-                "swa_start": None,
-                "swa_init": 0.001,
-                "n_eval_init": 1,
-                "save_cond": 'val_loss',
-                "early_stop": 50,
-                "max_train_size": 3,
-                "max_eval_size": 1,
-                "print_model": False
-            }
+        }
+    },
+    't2' : {
+        'init': {
+            "val_ratio": 0.15,
+            "test_ratio": 0.1,
+            "seed": 1,
+            "split_mode": 'random'
         },
         'small': {
             'searches': {
                 'def': {},
                 'lrs': {
-                  'init_lr': [1e-2, 3e-3, 1e-3, 3e-4],
-                  'min_lr': [1e-6, 1e-6, 1e-6, 1e-7],
-                  'val_freq': [0, 0, 0, 16],
-                  'earliest_val': [72, 72, 72, 72],
-                  'max_train_size': [128, 128, 128, 128],
-                  'train_batch_size': [8, 8, 8, 8],
-                  'train_seq_len': [4000, 4000, 4000, 4000],
-                  'val_seq_len': [200, 200, 200, 1000],
-                  'grad_acc_freq': [None, None, None, None],
-                  'val_batch_size': [8, 8, 8, 8],
-                  'max_eval_size': [1, 1, 1, 16],
-                  'save_name': ['1e-2', '3e-3', '1e-3', '3e-4']
-                 }
+                    'init_lr': [1e-2, 3e-3, 1e-3, 3e-4],
+                    'min_lr': [1e-6, 1e-6, 1e-6, 1e-7],
+                    'val_freq': [0, 0, 0, 16],
+                    'max_train_size': [140, 140, 140, 140],
+                    'train_batch_size': [28, 28, 28, 28],
+                    'train_seq_len': [4000, 4000, 4000, 4000],
+                    'max_eval_size': [1, 1, 1, 16],
+                    'save_name': ['1e-2', '3e-3', '1e-3', '3e-4']
+                }
             },
             'kwargs': {
                 "train_batch_size": 1,
@@ -213,9 +164,9 @@ params = {
                 "log_mode": 'w',
                 "grad_acc_freq": None,
                 "val_freq": 8,
-                "earliest_val": 0,
-                "val_batch_size": 1,
-                "val_seq_len": None,
+                "earliest_val": 72,
+                "val_batch_size": 16,
+                "val_seq_len": 512,
                 "in_types": ['type', 'beat', 'tempo_band', 'pitch', 'start', 'dur_full', 
                              'dur_fract'],
                 "attr_types": [],
@@ -247,7 +198,7 @@ params = {
                 "sch_warm_time": 0.1,
                 "sch_restart_len": 10,
                 "sch_restart_proportion": 0.15,
-                "sch_warm_factor": 0.5,
+                "sch_warm_factor": 0.1,
                 "swa_start": None,
                 "swa_init": 0.001,
                 "n_eval_init": 1,

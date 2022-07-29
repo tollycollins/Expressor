@@ -96,7 +96,8 @@ class WordDataset(Dataset):
         
         # larger batch sizes
         else:
-            self.length = min(math.ceil(len(t_idxs) / batch_size), max_len or 1100)
+            self.length = min(math.ceil(len(t_idxs) / batch_size), 
+                              int(max_len / batch_size) or 1100)
 
             self.in_data = []
             self.out_data = []
