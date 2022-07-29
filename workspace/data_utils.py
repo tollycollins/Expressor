@@ -104,22 +104,22 @@ class WordDataset(Dataset):
             self.names = []
 
             for nb in range(self.length):
-                idxs = t_idxs[nb * batch_size: min(len(t_idxs), nb * (batch_size + 1))]
+                idxs = slice(nb * batch_size, min(len(t_idxs), (nb + 1) * batch_size))
 
                 in_d = [torch.as_tensor([[word[i] for i in in_pos] for 
-                        word in data[0][idx]]) for idx in idxs]
+                        word in data[0][idx]]) for idx in t_idxs[idxs]]
                 self.in_data.append(self.make_batch(in_d))
             
                 out_d = [torch.as_tensor([[word[i] for i in out_pos] for 
-                         word in data[2][idx]]) for idx in idxs]
+                         word in data[2][idx]]) for idx in t_idxs[idxs]]
                 self.out_data.append(self.make_batch(out_d))
                 
                 if len(attr_types):
                     attr_d = [torch.as_tensor([[word[i] for i in attr_pos] for 
-                            word in data[1][idx]]) for idx in idxs]
+                            word in data[1][idx]]) for idx in t_idxs[idxs]]
                     self.attr_data.append(self.make_batch(attr_d))
 
-                self.names.append([meta['words_info']['names'][i] for i in idxs])
+                self.names.append([meta['words_info']['names'][i] for i in t_idxs[idxs]])
             
         print(f"Dataset length: {self.length}")
         
@@ -153,17 +153,17 @@ class WordDataset(Dataset):
     
     def make_batch(self, data):
         
-        (b, s, w) = data[0].shape
-        lengths = [d.shape[1] for d in data]
+        (s, w) = data[0].shape
+        lengths = [d.shape[0] for d in data]
         longest = max(lengths)
         full_len = min(longest, 20000 or self.max_len)
                 
-        out = torch.zeros((b, full_len, w))
+        out = torch.zeros((len(data), full_len, w), dtype=torch.long)
         for idx, (dt, length) in enumerate(zip(data, lengths)):
             if length > full_len:
-                out[idx, ...] = dt[:, :full_len, :]
+                out[idx, ...] = dt[:full_len, :]
             else:
-                out[idx, :length] = dt
+                out[idx, :length, :] = dt
                 
         return out
         

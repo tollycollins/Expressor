@@ -95,6 +95,8 @@ class Expressor(nn.Module):
         # linear for embeddings
         self.enc_emb_lin = nn.Linear(np.sum(enc_emb_dims), enc_dim)
         self.dec_emb_lin = nn.Linear(np.sum(dec_emb_dims), dec_dim)
+        if enc_dim + (np.sum(attr_emb_dims) or 0) != dec_dim:
+            self.latent_lin = nn.Linear(enc_dim + (np.sum(attr_emb_dims) or 0), dec_dim)
 
         # latent dimensions
         attr_emb_dim = 0 if attr_emb_dims == [] else np.sum(attr_emb_dims)
@@ -203,6 +205,11 @@ class Expressor(nn.Module):
             if self.attr_pos_emb:
                 attr_emb = self.attr_pos(attr_emb)
             zs = torch.cat([zs, attr_emb], dim=-1)
+
+        # change dimension of latent vectors to match decoder
+        if self.enc_dim + np.sum(self.attr_emb_dims) != self.dec_dim:
+            for i in range(len(zs)):
+                zs[i] = self.latent_lin(zs[i])
         
         # decoder
         if self.is_training:
@@ -242,7 +249,6 @@ class Expressor(nn.Module):
         assert len(pred_tokens) == t
         assert (b, s) == pred_tokens[0].size()[0: 2], \
             f"Pred tokens: {[*pred_tokens[0].shape[0: 2], len(pred_tokens)]}, Targets: {(b, s, t)}"
-        assert b == 1
 
         criterion = nn.CrossEntropyLoss()
         losses = []

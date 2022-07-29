@@ -46,7 +46,9 @@ params = {
         },
         'test': {
             'searches': {
-                'def': {},
+                'def': {
+                    'print_model': [True]
+                },
                 'swa_test': {
                     'val_freq': [3, 3],
                     'model_args': [
@@ -55,13 +57,30 @@ params = {
                         [[4, 4, 4, 4, 4, 4, 4], 8, 2, 1, 16, 
                          [4, 4, 4, 4, 4, 4, 4, 4], 8, 2, 1, 16]
                     ],
-                    'print_model': [False, False],
                     'max_train_size': [4, 2],
                     'val_freq': [0, 2]
                 },
                 'sched_test': {
                     'val_freq': [0],
                     'sch_restart_len': [5]
+                },
+                'batching': {
+                    'train_batch_size': [3, 1, 1, 1],
+                    'train_seq_len': [None, 200, None, None],
+                    'val_batch_size': [3, 3, 1, 1],
+                    'val_seq_len': [None, 200, 200, None],
+                    'grad_acc_freq': [None, None, None, 4],
+                    'val_freq': [2, 2, 2, 2],
+                    'max_train_size': [8, 3, 3, 10],
+                    'max_eval_size': [3, 4, 1, 1],
+                    'val_freq': [2, 2, 2, 0],
+                },
+                'enc_dec_dims': {
+                    'model_args': [
+                        [[2, 2, 2, 2, 2, 2, 2], 16, 3, 2, 32, 
+                         [2, 2, 2, 2, 2, 2, 2, 2], 32, 3, 2, 64]                 
+                    ],
+                    'val_freq': [0]
                 }
             },
             'kwargs': {
@@ -71,7 +90,7 @@ params = {
                 "log_mode": 'w',
                 "grad_acc_freq": None,
                 "val_freq": 1,
-                "earliest_val": None,
+                "earliest_val": 0,
                 "val_batch_size": 1,
                 "val_seq_len": None,
                 "in_types": ['type', 'beat', 'tempo_band', 'pitch', 'start', 'dur_full', 
@@ -113,7 +132,7 @@ params = {
                 "early_stop": 50,
                 "max_train_size": 3,
                 "max_eval_size": 1,
-                "print_model": True
+                "print_model": False
             }
         },
         'baseline': {
@@ -124,7 +143,7 @@ params = {
                 "log_mode": 'w',
                 "grad_acc_freq": None,
                 "val_freq": 1,
-                "earliest_val": None,
+                "earliest_val": 0,
                 "val_batch_size": 1,
                 "val_seq_len": None,
                 "in_types": ['type', 'beat', 'tempo_band', 'pitch', 'start', 'dur_full', 
@@ -186,7 +205,7 @@ params = {
                 "log_mode": 'w',
                 "grad_acc_freq": None,
                 "val_freq": 8,
-                "earliest_val": None,
+                "earliest_val": 0,
                 "val_batch_size": 1,
                 "val_seq_len": None,
                 "in_types": ['type', 'beat', 'tempo_band', 'pitch', 'start', 'dur_full', 

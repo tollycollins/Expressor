@@ -71,8 +71,8 @@ class EncoderBlock(nn.Module):
         N = x.shape[0]
         L = x.shape[1]
         attn_mask = FullMask(L, device=x.device)
-        length_mask = LengthMask(x.new_full((N, ), L, dtype=torch.int64))
-
+        length_mask = LengthMask(x.new_full((N, ), L, dtype=torch.long))
+        
         # apply layers
         skips = []
         for layer in self.layers:

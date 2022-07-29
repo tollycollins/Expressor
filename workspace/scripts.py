@@ -283,7 +283,7 @@ class Controller():
                     log_mode='w',
                     grad_acc_freq=None,
                     val_freq=5,
-                    earliest_val=None,
+                    earliest_val=0,
                     val_batch_size=1,
                     val_seq_len=None,                    
                     in_types=[],
@@ -320,15 +320,15 @@ class Controller():
                                                          max_len=max_train_size,
                                                          batch_size=train_batch_size, 
                                                          seq_len=train_seq_len), 
-                                  batch_size=train_batch_size, pin_memory=True, shuffle=True)
+                                  batch_size=1, pin_memory=True, shuffle=True)
         if val_freq:
             print("Obtaining validation data ...")
             val_loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
-                                                        self.val_ind,
-                                                        in_types, attr_types, out_types,
-                                                        max_len=max_eval_size,
-                                                        batch_size=val_batch_size,
-                                                        seq_len=val_seq_len),
+                                                           self.val_ind,
+                                                           in_types, attr_types, out_types,
+                                                           max_len=max_eval_size,
+                                                           batch_size=val_batch_size,
+                                                           seq_len=val_seq_len),
                                     batch_size=1, pin_memory=True, shuffle=True)
         
         # get positions of tokens in words
@@ -406,7 +406,8 @@ class Controller():
         # handle device
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         model.to(device)
-        eval_model.to(device)
+        if val_freq:
+            eval_model.to(device)
         
         # set up gradient accumulation over multiple batches
         if not grad_acc_freq:
@@ -436,7 +437,13 @@ class Controller():
                 enc_in = data['in'].to(device)
                 attr_in = data['attr'].to(device) if 'attr' in data else None
                 targets = data['out'].to(device)
-
+                
+                # squeeze if batch size > 1 (as batching done by DataSet)
+                if train_batch_size > 1:
+                    enc_in = enc_in.squeeze(0)
+                    targets = targets.squeeze(0)
+                    if attr_in is not None:
+                        attr_in = attr_in.squeeze(0)
                 
                 # forward pass
                 tokens_out, _ = model(enc_in, targets, attr_in, state=None)
@@ -570,6 +577,13 @@ class Controller():
                 attr_in = data['attr'].to(device) if 'attr' in data else None
                 targets = data['out'].to(device)
                 name = data['name']
+
+                # squeeze if batch size > 1 (as batching done by DataSet)
+                if len(enc_in.shape) == 4:
+                    enc_in = enc_in.squeeze(0)
+                    targets = targets.squeeze(0)
+                    if attr_in is not None:
+                        attr_in = attr_in.squeeze(0)
                 
                 # clip sequence length (optional)
                 seq_len = min(targets.shape[1], max_len or 20000)
@@ -605,6 +619,8 @@ class Controller():
 
     
     def test(self, dir_name,
+                   batch_size=1,
+                   max_seq_len=None,
                    filemode='w',
                    n_tests=1,
                    n_eval_init=1,
@@ -626,7 +642,9 @@ class Controller():
         loader = DataLoader(data_utils.WordDataset(self.data_base, self.meta, 
                                                    self.test_ind, model.in_types, 
                                                    model.attr_types, model.out_types,
-                                                   max_len=n_tests),
+                                                   max_len=n_tests,
+                                                   seq_len=max_seq_len,
+                                                   batch_size=batch_size),
                             batch_size=1, shuffle=False)
 
         # time for logging
@@ -702,7 +720,8 @@ class Controller():
                     print('')
                     # run
                     self.train(epochs, **kwargs)
-
+                
+                # enable keyboard interrupts to move onto next iteration of parameter search
                 except KeyboardInterrupt:
                     print("\n[!] Training run stopped by keyboard interrupt ...\n")
     
@@ -731,17 +750,17 @@ class Controller():
         
         def func(self, epoch):
             # warm-up
-            if epoch <= self.wu_len:
+            if epoch < self.wu_len:
                 lr = self.wu_factor + (1 - self.wu_factor) * epoch / self.wu_len
             
             # cosine annealing
-            if epoch > self.wu_len:
+            if epoch >= self.wu_len:
                 lr = self.min_lr_anneal + 0.5 * (1 - self.min_lr_anneal) * \
                      (1 + math.cos((epoch - self.wu_len) * math.pi / 
                       (self.max_epochs - self.wu_len)))
 
             # warm restarts
-            if epoch > self.wu_len:
+            if epoch >= self.wu_len:
                 lr *= self.min_lr_restart + 0.5 * (1 - self.min_lr_restart) * \
                       (1 + math.cos(self.restart_counter * math.pi / (self.restart_len)))
             
